@@ -1,0 +1,38 @@
+{
+  "nextId": 1,
+  "items": [],
+  "nextUserId": 5,
+  "users": [
+    {
+      "id": 1,
+      "username": "zhangsan",
+      "password": "123456",
+      "nickname": "张三",
+      "account": "ZS001",
+      "phone": "13800138001",
+      "email": "zhangsan@example.com",
+      "createdAt": 1704067200000
+    },
+    {
+      "id": 2,
+      "username": "lisi",
+      "password": "123456",
+      "nickname": "李四",
+      "account": "LS002",
+      "phone": "13800138002",
+      "email": "lisi@example.com",
+      "createdAt": 1704153600000
+    },
+    {
+      "id": 3,
+      "username": "abc",
+      "password": "abc123123",
+      "nickname": "你好呀",
+      "account": "你好呀",
+      "phone": "13600136000",
+      "email": "123@163.com",
+      "createdAt": 1768190572945,
+      "updatedAt": 1768191250045
+    }
+  ]
+}
