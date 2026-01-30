@@ -245,18 +245,13 @@ onMounted(() => {
             @keyup.enter.exact.prevent="handleSend"
           />
 
-          <div class="input-actions">
-            <el-icon class="mic-icon"><Microphone /></el-icon>
-            <el-button 
-              class="pill-send-btn" 
-              :disabled="(!inputMsg.trim() && !pendingImages.length) || isTyping"
-              @click="handleSend"
-            >
-              <svg class="wave-icon" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,6H13V18H11V6M7,9H9V15H7V9M15,9H17V15H15V9Z" />
-              </svg>
-            </el-button>
-          </div>
+          <el-button 
+            class="pill-send-btn" 
+            :disabled="(!inputMsg.trim() && !pendingImages.length) || isTyping"
+            @click="handleSend"
+          >
+            <el-icon><Position /></el-icon>
+          </el-button>
         </div>
         <input
           ref="fileInputRef"
@@ -560,24 +555,6 @@ onMounted(() => {
   color: #999;
 }
 
-.input-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding-right: 4px;
-}
-
-.mic-icon {
-  font-size: 20px;
-  color: #666;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.mic-icon:hover {
-  color: #333;
-}
-
 .pill-send-btn {
   width: 40px;
   height: 40px;
@@ -590,6 +567,7 @@ onMounted(() => {
   justify-content: center;
   color: white !important;
   transition: all 0.2s ease;
+  margin-left: 8px;
 }
 
 .pill-send-btn:hover {
@@ -601,11 +579,6 @@ onMounted(() => {
   background: #e0e0e0 !important;
   color: #a0a0a0 !important;
   cursor: not-allowed;
-}
-
-.wave-icon {
-  width: 22px;
-  height: 22px;
 }
 
 .file-input {
