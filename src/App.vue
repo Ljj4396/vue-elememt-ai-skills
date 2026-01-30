@@ -44,12 +44,12 @@ html, body, #app {
 .el-dropdown-menu__item:hover {
   background: rgba(139, 92, 246, 0.1) !important;
   color: #8b5cf6 !important;
-}
+  }
 
 .el-popper.is-light {
   background: #1a1a24 !important;
   border: 1px solid rgba(139, 92, 246, 0.2) !important;
-}
+  }
 
 .el-popper.is-light .el-popper__arrow::before {
   background: #1a1a24 !important;

@@ -14,8 +14,6 @@
   const loading = ref(false)
   const showPassword = ref(false)
 
-  const ai = ref('132456')
-
   // 打字机效果
   const displayText = ref('')
   const fullText = 'Welcome Back'
@@ -43,8 +41,7 @@
       const { data: res } = await http.post('/login', form.value)
       if (res.code === 0) {
         setToken(res.data.token)
-        ElMessage.success(`欢迎回来，${res.data.user.nickname}`)
-        // 跳转到原目标或首页
+        ElMessage.success(`欢迎回来 ${res.data.user.nickname}`)
         const redirect = route.query.redirect || '/'
         router.push(redirect)
       } else {
@@ -160,13 +157,14 @@
 
 <style scoped>
   .login-container {
-    min-height: 100vh;
+    position: fixed;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     background: #0a0a0f;
-    position: relative;
     overflow: hidden;
+    z-index: 1000;
     font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   }
 
@@ -175,6 +173,7 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
+    z-index: 1;
   }
 
   .particle {
@@ -201,7 +200,7 @@
     }
 
     100% {
-      transform: translateY(-100vh) scale(0.5);
+      transform: translateY(-110vh) scale(0.5);
       opacity: 0;
     }
   }
@@ -213,29 +212,36 @@
     filter: blur(80px);
     opacity: 0.4;
     animation: glow-pulse 8s ease-in-out infinite;
+    z-index: 2;
   }
 
   .glow-1 {
-    width: 400px;
-    height: 400px;
+    width: 50vw;
+    height: 50vw;
+    max-width: 600px;
+    max-height: 600px;
     background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    top: -100px;
-    left: -100px;
+    top: -10%;
+    left: -10%;
     animation-delay: 0s;
   }
 
   .glow-2 {
-    width: 350px;
-    height: 350px;
+    width: 45vw;
+    height: 45vw;
+    max-width: 500px;
+    max-height: 500px;
     background: linear-gradient(135deg, #ec4899, #f43f5e);
-    bottom: -50px;
-    right: -50px;
+    bottom: -5%;
+    right: -5%;
     animation-delay: 2s;
   }
 
   .glow-3 {
-    width: 300px;
-    height: 300px;
+    width: 40vw;
+    height: 40vw;
+    max-width: 450px;
+    max-height: 450px;
     background: linear-gradient(135deg, #06b6d4, #3b82f6);
     top: 50%;
     left: 50%;
@@ -247,35 +253,44 @@
 
     0%,
     100% {
-      transform: scale(1);
+      transform: translate(0, 0) scale(1);
       opacity: 0.4;
     }
 
-    50% {
-      transform: scale(1.2);
-      opacity: 0.6;
+    33% {
+      transform: translate(2%, 2%) scale(1.1);
+      opacity: 0.5;
+    }
+
+    66% {
+      transform: translate(-2%, 1%) scale(0.9);
+      opacity: 0.3;
     }
   }
 
   /* 登录卡片 - 玻璃拟态 */
   .login-card {
     position: relative;
-    width: 420px;
-    padding: 48px 40px;
+    z-index: 10;
+    width: 100%;
+    max-width: 500px;
+    margin: 20px;
+    padding: 52px 56px;
     background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(20px);
-    border-radius: 24px;
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border-radius: 28px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow:
-      0 25px 50px rgba(0, 0, 0, 0.5),
+      0 25px 50px -12px rgba(0, 0, 0, 0.5),
       inset 0 1px 1px rgba(255, 255, 255, 0.1);
-    animation: card-appear 0.8s ease-out;
+    animation: card-appear 0.8s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   @keyframes card-appear {
     from {
       opacity: 0;
-      transform: translateY(30px) scale(0.95);
+      transform: translateY(20px) scale(0.98);
     }
 
     to {
@@ -287,14 +302,14 @@
   /* Logo */
   .card-header {
     text-align: center;
-    margin-bottom: 36px;
+    margin-bottom: 40px;
   }
 
   .logo-wrapper {
     position: relative;
-    width: 80px;
-    height: 80px;
-    margin: 0 auto 20px;
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 24px;
   }
 
   .logo-ring {
@@ -304,7 +319,9 @@
     border: 2px solid transparent;
     background: linear-gradient(135deg, #8b5cf6, #ec4899, #06b6d4) border-box;
     mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
     mask-composite: exclude;
+    -webkit-mask-composite: destination-out;
     animation: ring-spin 4s linear infinite;
   }
 
@@ -322,17 +339,18 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 32px;
+    font-size: 34px;
     font-weight: 700;
     color: #fff;
     text-shadow: 0 0 20px rgba(139, 92, 246, 0.8);
+    box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.3);
   }
 
   .title {
-    font-size: 28px;
+    font-size: 32px;
     font-weight: 600;
     color: #fff;
-    margin: 0 0 8px;
+    margin: 0 0 10px;
     letter-spacing: 1px;
   }
 
@@ -369,14 +387,14 @@
   }
 
   .subtitle {
-    font-size: 14px;
+    font-size: 15px;
     color: rgba(255, 255, 255, 0.5);
     margin: 0;
   }
 
   /* 输入框 */
   .input-group {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
   }
 
   .input-wrapper {
@@ -387,11 +405,11 @@
 
   .input-icon {
     position: absolute;
-    left: 16px;
-    width: 20px;
-    height: 20px;
+    left: 18px;
+    width: 22px;
+    height: 22px;
     color: rgba(255, 255, 255, 0.4);
-    transition: color 0.3s;
+    transition: all 0.3s;
     z-index: 1;
   }
 
@@ -402,46 +420,48 @@
 
   .neon-input {
     width: 100%;
-    height: 52px;
-    padding: 0 48px;
-    background: rgba(255, 255, 255, 0.05);
+    height: 56px;
+    padding: 0 52px;
+    background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    font-size: 15px;
+    border-radius: 16px;
+    font-size: 16px;
     color: #fff;
     outline: none;
     transition: all 0.3s ease;
   }
 
   .neon-input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.25);
   }
 
   .neon-input:focus {
     border-color: #8b5cf6;
     box-shadow:
-      0 0 0 3px rgba(139, 92, 246, 0.15),
-      0 0 20px rgba(139, 92, 246, 0.2);
-    background: rgba(139, 92, 246, 0.05);
+      0 0 0 4px rgba(139, 92, 246, 0.15),
+      0 0 30px rgba(139, 92, 246, 0.2);
+    background: rgba(139, 92, 246, 0.06);
   }
 
   .neon-input:focus+.input-icon,
   .input-wrapper:focus-within .input-icon {
     color: #8b5cf6;
+    transform: scale(1.1);
   }
 
   .toggle-password {
     position: absolute;
-    right: 16px;
-    width: 20px;
-    height: 20px;
+    right: 18px;
+    width: 22px;
+    height: 22px;
     color: rgba(255, 255, 255, 0.4);
     cursor: pointer;
-    transition: color 0.3s;
+    transition: all 0.3s;
   }
 
   .toggle-password:hover {
     color: #8b5cf6;
+    transform: scale(1.1);
   }
 
   .toggle-password svg {
@@ -452,18 +472,18 @@
   /* 登录按钮 */
   .login-btn {
     width: 100%;
-    height: 52px;
-    margin-top: 8px;
+    height: 56px;
+    margin-top: 12px;
     background: linear-gradient(135deg, #8b5cf6, #6366f1);
     border: none;
-    border-radius: 12px;
-    font-size: 16px;
+    border-radius: 16px;
+    font-size: 18px;
     font-weight: 600;
     color: #fff;
     cursor: pointer;
     position: relative;
     overflow: hidden;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .login-btn::before {
@@ -482,12 +502,12 @@
   .login-btn:hover {
     transform: translateY(-2px);
     box-shadow:
-      0 10px 30px rgba(139, 92, 246, 0.4),
+      0 12px 30px rgba(139, 92, 246, 0.4),
       0 0 40px rgba(139, 92, 246, 0.2);
   }
 
   .login-btn:active {
-    transform: translateY(0);
+    transform: translateY(1px);
   }
 
   .login-btn span {
@@ -497,17 +517,18 @@
 
   .login-btn.loading {
     pointer-events: none;
+    opacity: 0.8;
   }
 
   .loading-dots {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     justify-content: center;
   }
 
   .loading-dots span {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     background: #fff;
     border-radius: 50%;
     animation: dot-bounce 1.4s ease-in-out infinite;
@@ -542,23 +563,23 @@
 
   /* 测试账号提示 */
   .demo-accounts {
-    margin-top: 32px;
-    padding-top: 24px;
+    margin-top: 40px;
+    padding-top: 28px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     text-align: center;
   }
 
   .demo-accounts p {
-    font-size: 12px;
+    font-size: 13px;
     color: rgba(255, 255, 255, 0.3);
-    margin: 0 0 12px;
+    margin: 0 0 16px;
     text-transform: uppercase;
-    letter-spacing: 2px;
+    letter-spacing: 2.5px;
   }
 
   .accounts {
     display: flex;
-    gap: 16px;
+    gap: 12px;
     justify-content: center;
     flex-wrap: wrap;
   }
@@ -566,9 +587,10 @@
   .accounts span {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.5);
-    padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 6px;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
     cursor: pointer;
     transition: all 0.3s;
     font-family: 'Consolas', 'Monaco', monospace;
@@ -577,18 +599,71 @@
   .accounts span:hover {
     color: #8b5cf6;
     background: rgba(139, 92, 246, 0.1);
+    border-color: rgba(139, 92, 246, 0.3);
+    transform: translateY(-1px);
   }
 
-  /* 响应式 */
+  /* 响应式适配 */
+  @media (max-width: 640px) {
+    .login-card {
+      padding: 40px 32px;
+      border-radius: 24px;
+    }
+
+    .title {
+      font-size: 28px;
+    }
+
+    .logo-wrapper {
+      width: 72px;
+      height: 72px;
+    }
+
+    .logo-core {
+      font-size: 28px;
+    }
+  }
+
   @media (max-width: 480px) {
     .login-card {
-      width: calc(100% - 32px);
       padding: 36px 24px;
       margin: 16px;
     }
 
     .title {
       font-size: 24px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+    }
+
+    .neon-input {
+      height: 52px;
+      font-size: 15px;
+    }
+
+    .login-btn {
+      height: 52px;
+      font-size: 16px;
+    }
+    
+    .accounts span {
+      padding: 6px 10px;
+      font-size: 11px;
+    }
+  }
+
+  /* 极小屏幕适配 */
+  @media (max-height: 700px) {
+    .login-card {
+      padding: 32px 32px;
+    }
+    .card-header {
+      margin-bottom: 24px;
+    }
+    .demo-accounts {
+      margin-top: 24px;
     }
   }
 </style>

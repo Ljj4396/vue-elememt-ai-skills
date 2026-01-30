@@ -10,6 +10,8 @@ import {
   DataLine,
   Setting,
   SwitchButton,
+  MagicStick,
+  ChatDotRound,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -21,6 +23,8 @@ const userInfo = ref({ nickname: '', username: '' })
 const menuItems = [
   { path: '/dashboard', name: 'Dashboard', title: '仪表盘', icon: DataLine },
   { path: '/users', name: 'Users', title: '用户管理', icon: User },
+  { path: '/fortune', name: 'Fortune', title: '每日运势', icon: MagicStick },
+  { path: '/ai', name: 'AIChat', title: '智能助手', icon: ChatDotRound },
 ]
 
 const activeMenu = computed(() => route.path)

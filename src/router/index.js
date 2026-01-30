@@ -24,6 +24,18 @@ const routes = [
     component: () => import('@/views/Dashboard.vue'),
     meta: { requiresAuth: true, title: '仪表盘' },
   },
+  {
+    path: '/fortune',
+    name: 'Fortune',
+    component: () => import('@/views/FortuneCards.vue'),
+    meta: { requiresAuth: true, title: '每日运势' },
+  },
+  {
+    path: '/ai',
+    name: 'AIChat',
+    component: () => import('@/views/AIChat.vue'),
+    meta: { requiresAuth: true, title: '智能助手' },
+  },
 ]
 
 const router = createRouter({

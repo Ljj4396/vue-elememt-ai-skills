@@ -31,11 +31,31 @@ export default defineConfig({
       },
     }),
   ],
+  optimizeDeps: {
+    // 提升开发时依赖预构建命中率
+    include: ['element-plus', '@element-plus/icons-vue'],
+  },
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://127.0.0.1:3000', // 使用 127.0.0.1 避开可能的 DNS 解析延迟
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '/api'), // 确保路径匹配
+      },
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // 拆分大体积依赖，降低主包体积
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('element-plus')) return 'element-plus'
+            if (id.includes('@element-plus/icons-vue')) return 'element-plus-icons'
+            if (id.includes('vue')) return 'vue-vendor'
+            return 'vendor'
+          }
+        },
       },
     },
   },

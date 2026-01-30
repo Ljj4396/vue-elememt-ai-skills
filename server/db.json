@@ -10,8 +10,9 @@
       "nickname": "张三",
       "account": "ZS001",
       "phone": "13800138001",
-      "email": "zhangsan@example.com",
-      "createdAt": 1704067200000
+      "email": "zhangsan123@example.com",
+      "createdAt": 1704067200000,
+      "updatedAt": 1769760765351
     },
     {
       "id": 2,

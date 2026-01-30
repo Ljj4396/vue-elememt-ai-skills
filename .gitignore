@@ -26,6 +26,7 @@ coverage
 
 *.tsbuildinfo
 
+
 .eslintcache
 
 # Cypress
@@ -34,3 +35,8 @@ coverage
 
 # Vitest
 __screenshots__/
+
+.cursor
+final_review_gate.py
+.agents
+.github

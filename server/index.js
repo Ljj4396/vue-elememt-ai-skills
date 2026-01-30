@@ -3,15 +3,17 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import jwt from 'jsonwebtoken'
+import 'dotenv/config' // 自动加载 .env 变量
+import { log } from 'node:console'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const PORT = 3000
+const PORT = process.env.PORT || 3000
 const DB_PATH = join(__dirname, 'db.json')
 
-// JWT 密钥（生产环境应该用环境变量）
-const JWT_SECRET = 'your-super-secret-key-change-in-production'
+// JWT 密钥
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-change-in-production'
 const JWT_EXPIRES_IN = '1h' // 1小时过期
 
 // 生成 token
@@ -169,6 +171,65 @@ const server = http.createServer(async (req, res) => {
     const token = extractToken(req)
     const tokenPayload = verifyToken(token)
     if (!tokenPayload) return unauthorized(res)
+
+    // 调试日志
+    console.log(`[API] ${method} ${pathname}`)
+
+    // ========== AI 聊天接口 (接入 Claude/OpenAI) ==========
+    if (method === 'POST' && pathname === '/api/chat') {
+      const body = await parseJsonBody(req)
+      if (body === Symbol.for('invalid_json')) return err(res, 40000, 'JSON 解析失败')
+      const { messages } = body || {}
+      if (!Array.isArray(messages)) return err(res, 40000, 'messages 格式错误')
+
+      try {
+        const API_KEY = process.env.AI_API_KEY
+        const BASE_URL = process.env.AI_BASE_URL
+        const MODEL = process.env.AI_MODEL
+
+        const response = await fetch(`${BASE_URL}/responses`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${API_KEY}`
+          },
+          body: JSON.stringify({
+            model: MODEL,
+            input: messages.map((m) => ({ role: m.role, content: m.content })),
+            stream: false
+          })
+        })
+        // 增强：先检查响应类型，防止 HTML 导致解析崩溃
+        const contentType = response.headers.get('content-type') || ''
+        if (!contentType.includes('application/json')) {
+          const errorText = await response.text()
+          console.error('API 返回非 JSON 响应:', errorText.slice(0, 200))
+          return err(res, response.status, '接口返回格式错误 (可能是 40412121 或 WAF 拦截)', { 
+            detail: errorText.slice(0, 100) 
+          })
+        }
+      
+
+        const data = await response.json()
+        console.log(response, contentType, 'contentType', data)
+        if (!response.ok) {
+          return err(res, response.status, data.error?.message || 'AI 接口报错')
+        }
+
+        const aiContent =
+          data.output
+            ?.filter((item) => item.type === 'message' && Array.isArray(item.content))
+            .flatMap((item) => item.content)
+            .map((c) => c?.text || '')
+            .join('')
+            .trim() ||
+          data.choices?.[0]?.message?.content ||
+          ''
+        return ok(res, { content: aiContent })
+      } catch (e) {
+        return err(res, 50000, 'AI 服务连接失败', { detail: String(e.message) })
+      }
+    }
 
     // list
     if (method === 'GET' && pathname === '/api/items') {
@@ -334,5 +395,9 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`API server listening on http://localhost:${PORT}`)
+  console.log('--- 环境配置检查 ---')
+  console.log('AI_BASE_URL:', process.env.AI_BASE_URL ? '已加载' : '未找到!')
+  console.log('AI_MODEL:', process.env.AI_MODEL)
+  console.log('--------------------')
 })
 
