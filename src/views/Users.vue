@@ -173,7 +173,7 @@ onMounted(loadUsers)
 
     <!-- 数据表格 -->
     <div class="table-card">
-      <el-table :data="filteredUsers" v-loading="loading" class="data-table">
+      <el-table :data="filteredUsers" v-loading="loading" class="data-table" :max-height="'calc(100vh - 360px)'">
         <el-table-column prop="id" label="ID" width="80" align="center">
           <template #default="{ row }">
             <span class="id-tag">#{{ row.id }}</span>
@@ -351,7 +351,7 @@ onMounted(loadUsers)
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .data-table {

@@ -1,5 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getToken } from '@/plugins/axios'
+import {
+  getToken,
+  getUserPermissions,
+  setUserPermissions,
+  getIsAdmin,
+  setIsAdmin,
+  http,
+} from '@/plugins/axios'
 
 const routes = [
   {
@@ -10,13 +17,31 @@ const routes = [
   },
   {
     path: '/',
-    redirect: '/users',
+    redirect: '/dashboard',
   },
   {
     path: '/users',
     name: 'Users',
     component: () => import('@/views/Users.vue'),
-    meta: { requiresAuth: true, title: '用户管理' },
+    meta: { requiresAuth: true, title: '用户管理', permission: 'users' },
+  },
+  {
+    path: '/permissions',
+    name: 'Permissions',
+    component: () => import('@/views/Permissions.vue'),
+    meta: { requiresAuth: true, title: '权限控制', permission: 'users' },
+  },
+  {
+    path: '/balance',
+    name: 'BalanceSheet',
+    component: () => import('@/views/BalanceSheet.vue'),
+    meta: { requiresAuth: true, title: '余额表' },
+  },
+  {
+    path: '/ai-requests',
+    name: 'AIRequests',
+    component: () => import('@/views/AIRequests.vue'),
+    meta: { requiresAuth: true, title: '权限申请', permission: 'users', adminOnly: true },
   },
   {
     path: '/dashboard',
@@ -34,7 +59,7 @@ const routes = [
     path: '/ai',
     name: 'AIChat',
     component: () => import('@/views/AIChat.vue'),
-    meta: { requiresAuth: true, title: '智能助手' },
+    meta: { requiresAuth: true, title: '智能助手', permission: 'ai' },
   },
 ]
 
@@ -47,7 +72,27 @@ const router = createRouter({
 })
 
 // 全局路由守卫
-router.beforeEach((to, from, next) => {
+async function resolveAuth() {
+  const cachedPermissions = getUserPermissions()
+  const cachedAdmin = getIsAdmin()
+  if (cachedPermissions || cachedAdmin) {
+    return { permissions: cachedPermissions || {}, isAdmin: cachedAdmin }
+  }
+  try {
+    const { data: res } = await http.get('/user/info')
+    if (res.code === 0) {
+      setUserPermissions(res.data.permissions || {})
+      setIsAdmin(res.data.isAdmin === true)
+      return { permissions: res.data.permissions || {}, isAdmin: res.data.isAdmin === true }
+    }
+  } catch {
+    // ignore
+  }
+  return { permissions: {}, isAdmin: false }
+}
+
+// 全局路由守卫
+router.beforeEach(async (to, from, next) => {
   const token = getToken()
   const requiresAuth = to.meta.requiresAuth !== false
 
@@ -56,6 +101,16 @@ router.beforeEach((to, from, next) => {
   } else if (to.name === 'Login' && token) {
     next({ name: 'Dashboard' })
   } else {
+    const requiredPermission = to.meta.permission
+    if (requiresAuth && requiredPermission) {
+      const { permissions, isAdmin } = await resolveAuth()
+      if (to.meta.adminOnly && !isAdmin) {
+        return next({ name: 'Dashboard' })
+      }
+      if (!isAdmin && permissions?.[requiredPermission] !== true) {
+        return next({ name: 'Dashboard' })
+      }
+    }
     next()
   }
 })

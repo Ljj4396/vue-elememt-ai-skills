@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, nextTick, onMounted } from 'vue'
+import { ref, reactive, nextTick, onMounted, watch, computed } from 'vue'
 import { ChatDotRound, Position, Promotion, MagicStick, Warning, Delete, Upload, Plus, Microphone } from '@element-plus/icons-vue'
 import { http } from '@/plugins/axios'
 import { ElMessage } from 'element-plus'
@@ -9,19 +9,32 @@ const fileInputRef = ref(null)
 const inputMsg = ref('')
 const isTyping = ref(false)
 const pendingImages = ref([])
+const requestDialogVisible = ref(false)
+const requestReason = ref('')
+const requestSubmitting = ref(false)
 
-const chatHistory = reactive([
-  {
-    role: 'ai',
-    content: '你好！我是你的智能助手。你可以问我关于系统操作、今日占卜解读，或者任何你想聊的话题。',
-    time: new Date().toLocaleTimeString()
-  }
-])
+const DEFAULT_TITLE = '新对话'
+
+const makeWelcomeMessage = () => ({
+  role: 'ai',
+  content: '你好！我是你的智能助手。有什么想聊的，尽管问我。',
+  time: new Date().toLocaleTimeString()
+})
+
+const conversations = ref([])
+const activeConversationId = ref(null)
+const historyReady = ref(false)
+const saveTimer = ref(null)
+
+const activeConversation = computed(() =>
+  conversations.value.find((c) => c.id === activeConversationId.value),
+)
+const chatHistory = computed(() => activeConversation.value?.messages || [])
 
 const quickPrompts = [
-  { icon: 'MagicStick', text: '解读今日生肖冲煞', type: 'fortune' },
-  { icon: 'Warning', text: '如何修改我的账号密码？', type: 'system' },
-  { icon: 'Promotion', text: '帮我规划一下今天的日程', type: 'chat' }
+  { icon: 'MagicStick', text: '帮我写一段自我介绍', type: 'chat' },
+  { icon: 'Warning', text: '总结一下这段文字的要点', type: 'chat' },
+  { icon: 'Promotion', text: '给我 5 条高效学习建议', type: 'chat' }
 ]
 
 const scrollToBottom = async () => {
@@ -31,8 +44,49 @@ const scrollToBottom = async () => {
   }
 }
 
+const createConversation = (seedMessages) => {
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const conversation = {
+    id,
+    title: DEFAULT_TITLE,
+    messages: seedMessages?.length ? seedMessages : [makeWelcomeMessage()],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+  conversations.value.unshift(conversation)
+  activeConversationId.value = id
+  scheduleSave()
+  return conversation
+}
+
+const selectConversation = async (id) => {
+  activeConversationId.value = id
+  scheduleSave()
+  await scrollToBottom()
+}
+
+const updateTitleFromText = (conversation, text) => {
+  const cleaned = String(text || '').trim()
+  if (!cleaned || conversation.title !== DEFAULT_TITLE) return
+  conversation.title = cleaned.length > 16 ? `${cleaned.slice(0, 16)}…` : cleaned
+}
+
+const bumpConversation = (conversation) => {
+  const idx = conversations.value.findIndex((c) => c.id === conversation.id)
+  if (idx > 0) {
+    conversations.value.splice(idx, 1)
+    conversations.value.unshift(conversation)
+  }
+}
+
 const simulateAIResponse = async (userText) => {
   isTyping.value = true
+
+  const conversation = activeConversation.value
+  if (!conversation) {
+    isTyping.value = false
+    return
+  }
   
   // 添加一个空的 AI 消息占位
   const aiMsg = reactive({
@@ -40,12 +94,13 @@ const simulateAIResponse = async (userText) => {
     content: '正在思考中...',
     time: new Date().toLocaleTimeString()
   })
-  chatHistory.push(aiMsg)
+  conversation.messages.push(aiMsg)
+  conversation.updatedAt = Date.now()
   scrollToBottom()
   
   try {
     // 构造发送给后端的上下文
-    const contextMessages = chatHistory
+    const contextMessages = conversation.messages
       .slice(0, -1) // 不包含刚才那个“正在思考”
       .map(m => {
         const role = m.role === 'ai' ? 'assistant' : 'user'
@@ -79,6 +134,14 @@ const simulateAIResponse = async (userText) => {
         await new Promise(resolve => setTimeout(resolve, fullResponse.length > 100 ? 10 : 30))
         scrollToBottom()
       }
+      conversation.updatedAt = Date.now()
+      bumpConversation(conversation)
+      scheduleSave()
+    } else if (res.code === 42901) {
+      const message = res.data?.message || '今日提问次数已达上限，请申请 VIP 权限'
+      aiMsg.content = message
+      ElMessage.warning(message)
+      requestDialogVisible.value = true
     } else {
       aiMsg.content = '抱歉，我遇到了一些问题：' + (res.data?.message || '未知错误')
     }
@@ -95,13 +158,19 @@ const handleSend = () => {
   const hasImages = pendingImages.value.length > 0
   if ((!hasText && !hasImages) || isTyping.value) return
   
+  const conversation = activeConversation.value
+  if (!conversation) return
   const userText = inputMsg.value
-  chatHistory.push({
+  conversation.messages.push({
     role: 'user',
     content: userText,
     images: hasImages ? [...pendingImages.value] : [],
     time: new Date().toLocaleTimeString()
   })
+  updateTitleFromText(conversation, userText)
+  conversation.updatedAt = Date.now()
+  bumpConversation(conversation)
+  scheduleSave()
   
   inputMsg.value = ''
   pendingImages.value = []
@@ -140,13 +209,123 @@ const removePendingImage = (index) => {
   pendingImages.value.splice(index, 1)
 }
 
-const clearHistory = () => {
-  chatHistory.splice(1)
+const hasUserMessage = (conversation) =>
+  Array.isArray(conversation?.messages) &&
+  conversation.messages.some(
+    (m) =>
+      m?.role === 'user' &&
+      ((typeof m.content === 'string' && m.content.trim()) ||
+        (Array.isArray(m.images) && m.images.length > 0)),
+  )
+
+const submitVipRequest = async () => {
+  const reason = requestReason.value.trim()
+  if (!reason) {
+    ElMessage.warning('请输入申请原因')
+    return
+  }
+  requestSubmitting.value = true
+  try {
+    const { data: res } = await http.post('/ai/requests', { reason })
+    if (res.code === 0) {
+      ElMessage.success('申请已提交，请等待管理员审核')
+      requestDialogVisible.value = false
+      requestReason.value = ''
+    } else {
+      ElMessage.error(res.data?.message || '提交失败')
+    }
+  } catch (e) {
+    ElMessage.error('提交失败，请检查网络')
+  } finally {
+    requestSubmitting.value = false
+  }
 }
 
-onMounted(() => {
+const persistHistory = async () => {
+  const persistedConversations = conversations.value.filter((c) => hasUserMessage(c))
+  const activeId = persistedConversations.some((c) => c.id === activeConversationId.value)
+    ? activeConversationId.value
+    : persistedConversations[0]?.id || null
+  const payload = {
+    activeId,
+    conversations: JSON.parse(JSON.stringify(persistedConversations)),
+  }
+  try {
+    await http.put('/chat/history', payload)
+  } catch (e) {
+    console.warn('Failed to persist chat history:', e)
+  }
+}
+
+const scheduleSave = () => {
+  if (!historyReady.value) return
+  if (saveTimer.value) clearTimeout(saveTimer.value)
+  saveTimer.value = setTimeout(async () => {
+    if (isTyping.value) {
+      scheduleSave()
+      return
+    }
+    await persistHistory()
+  }, 600)
+}
+
+const clearHistory = async () => {
+  conversations.value = []
+  activeConversationId.value = null
+  try {
+    await http.delete('/chat/history')
+  } catch (e) {
+    console.warn('Failed to clear chat history:', e)
+  }
+  createConversation()
+  scheduleSave()
+}
+
+const applyHistory = (history) => {
+  const list = Array.isArray(history?.conversations) ? history.conversations : []
+  if (!list.length) return false
+  conversations.value = list
+  const activeId = history.activeId
+  const exists = list.some((c) => c.id === activeId)
+  if (activeId && exists) {
+    activeConversationId.value = activeId
+    return true
+  }
+  const sorted = [...list].sort(
+    (a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0),
+  )
+  activeConversationId.value = sorted[0]?.id || list[0]?.id || null
+  return true
+}
+
+const loadHistory = async () => {
+  try {
+    const { data: res } = await http.get('/chat/history')
+    if (res.code === 0) {
+      const history = res.data || {}
+      applyHistory(history)
+    } else {
+      ElMessage.error(res.data?.message || '加载聊天记录失败')
+    }
+  } catch (e) {
+    ElMessage.error('加载聊天记录失败')
+  }
+  historyReady.value = true
+}
+
+onMounted(async () => {
+  await loadHistory()
+  createConversation()
   scrollToBottom()
 })
+
+watch(
+  () => [conversations.value, activeConversationId.value],
+  () => {
+    scheduleSave()
+  },
+  { deep: true }
+)
 </script>
 
 <template>
@@ -157,9 +336,21 @@ onMounted(() => {
         <ChatDotRound class="icon" />
         <span>对话列表</span>
       </div>
+      <div class="sidebar-actions">
+        <el-button class="new-btn" type="primary" size="small" @click="createConversation()">
+          新建对话
+        </el-button>
+      </div>
       <div class="history-list">
-        <div class="history-item active">当前对话</div>
-        <div class="history-item empty">暂无更多历史</div>
+        <div
+          v-for="conv in conversations"
+          :key="conv.id"
+          :class="['history-item', conv.id === activeConversationId ? 'active' : '']"
+          @click="selectConversation(conv.id)"
+        >
+          {{ conv.title || '未命名对话' }}
+        </div>
+        <div v-if="!conversations.length" class="history-item empty">暂无更多历史</div>
       </div>
       <el-button class="clear-btn" :icon="Delete" @click="clearHistory">清空对话记录</el-button>
     </div>
@@ -264,16 +455,38 @@ onMounted(() => {
       </div>
     </div>
   </div>
+
+  <el-dialog
+    v-model="requestDialogVisible"
+    title="申请 VIP 权限"
+    width="460px"
+    :close-on-click-modal="false"
+  >
+    <el-input
+      v-model="requestReason"
+      type="textarea"
+      :rows="4"
+      placeholder="请填写申请原因（例如使用场景或工作需要）"
+    />
+    <template #footer>
+      <el-button @click="requestDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="requestSubmitting" @click="submitVipRequest">
+        提交申请
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
 .ai-container {
   display: flex;
-  height: calc(100vh - 120px);
+  /* Avoid fixed height clipping at 150%/200% browser zoom */
+  min-height: calc(100vh - 120px);
+  height: auto;
   background: rgba(20, 20, 30, 0.6);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  overflow: hidden;
+  overflow: auto;
   backdrop-filter: blur(20px);
 }
 
@@ -284,6 +497,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   background: rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
 }
 
 .sidebar-header {
@@ -294,6 +508,15 @@ onMounted(() => {
   font-weight: bold;
   font-size: 18px;
   color: #8b5cf6;
+}
+
+.sidebar-actions {
+  padding: 0 20px 12px;
+}
+
+.new-btn {
+  width: 100%;
+  border-radius: 8px;
 }
 
 .history-list {

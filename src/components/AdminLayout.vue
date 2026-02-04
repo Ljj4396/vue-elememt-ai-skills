@@ -1,7 +1,14 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getToken, removeToken, http } from '@/plugins/axios'
+import {
+  removeToken,
+  http,
+  getUserPermissions,
+  setUserPermissions,
+  getIsAdmin,
+  setIsAdmin,
+} from '@/plugins/axios'
 import { ElMessage } from 'element-plus'
 import {
   Fold,
@@ -12,22 +19,46 @@ import {
   SwitchButton,
   MagicStick,
   ChatDotRound,
+  Lock,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
-const userInfo = ref({ nickname: '', username: '' })
+const userInfo = ref({
+  nickname: '',
+  username: '',
+  permissions: getUserPermissions() || {},
+  isAdmin: getIsAdmin(),
+})
 
 // 菜单配置
 const menuItems = [
   { path: '/dashboard', name: 'Dashboard', title: '仪表盘', icon: DataLine },
-  { path: '/users', name: 'Users', title: '用户管理', icon: User },
+  { path: '/balance', name: 'BalanceSheet', title: '余额表', icon: DataLine },
+  { path: '/users', name: 'Users', title: '用户管理', icon: User, permission: 'users' },
+  { path: '/permissions', name: 'Permissions', title: '权限控制', icon: Lock, permission: 'users' },
+  {
+    path: '/ai-requests',
+    name: 'AIRequests',
+    title: '权限申请',
+    icon: Lock,
+    permission: 'users',
+    adminOnly: true,
+  },
   { path: '/fortune', name: 'Fortune', title: '每日运势', icon: MagicStick },
-  { path: '/ai', name: 'AIChat', title: '智能助手', icon: ChatDotRound },
+  { path: '/ai', name: 'AIChat', title: '智能助手', icon: ChatDotRound, permission: 'ai' },
 ]
 
 const activeMenu = computed(() => route.path)
+const allowedMenuItems = computed(() =>
+  menuItems.filter((item) => {
+    if (item.adminOnly && !userInfo.value.isAdmin) return false
+    if (!item.permission) return true
+    if (userInfo.value.isAdmin) return true
+    return userInfo.value.permissions?.[item.permission] === true
+  }),
+)
 
 // 获取用户信息
 async function loadUserInfo() {
@@ -35,6 +66,8 @@ async function loadUserInfo() {
     const { data: res } = await http.get('/user/info')
     if (res.code === 0) {
       userInfo.value = res.data
+      setUserPermissions(res.data.permissions || {})
+      setIsAdmin(res.data.isAdmin === true)
     }
   } catch (e) {
     console.error('获取用户信息失败', e)
@@ -66,7 +99,7 @@ onMounted(loadUserInfo)
       <!-- 菜单 -->
       <nav class="sidebar-menu">
         <router-link
-          v-for="item in menuItems"
+          v-for="item in allowedMenuItems"
           :key="item.path"
           :to="item.path"
           class="menu-item"
@@ -352,7 +385,7 @@ onMounted(loadUserInfo)
 .content-area {
   flex: 1;
   background: #0a0a0f;
-  overflow-y: auto;
+  overflow: auto;
 }
 
 /* 响应式 */
