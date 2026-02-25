@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, nextTick, onMounted, watch, computed } from 'vue'
+import { ref, reactive, nextTick, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { ChatDotRound, Position, Promotion, MagicStick, Warning, Delete, Upload, Plus, Microphone } from '@element-plus/icons-vue'
 import { http } from '@/plugins/axios'
 import { ElMessage } from 'element-plus'
@@ -39,9 +39,12 @@ const quickPrompts = [
 
 const scrollToBottom = async () => {
   await nextTick()
-  if (scrollRef.value) {
-    scrollRef.value.setScrollTop(scrollRef.value.wrapRef.scrollHeight)
-  }
+  // 使用 requestAnimationFrame 优化滚动性能
+  requestAnimationFrame(() => {
+    if (scrollRef.value) {
+      scrollRef.value.setScrollTop(scrollRef.value.wrapRef.scrollHeight)
+    }
+  })
 }
 
 const createConversation = (seedMessages) => {
@@ -87,21 +90,21 @@ const simulateAIResponse = async (userText) => {
     isTyping.value = false
     return
   }
-  
-  // 添加一个空的 AI 消息占位
-  const aiMsg = reactive({
+
+  // 添加一个普通对象消息占位（不使用 reactive）
+  const aiMsg = {
     role: 'ai',
     content: '正在思考中...',
     time: new Date().toLocaleTimeString()
-  })
+  }
   conversation.messages.push(aiMsg)
   conversation.updatedAt = Date.now()
   scrollToBottom()
-  
+
   try {
     // 构造发送给后端的上下文
     const contextMessages = conversation.messages
-      .slice(0, -1) // 不包含刚才那个“正在思考”
+      .slice(0, -1) // 不包含刚才那个"正在思考"
       .map(m => {
         const role = m.role === 'ai' ? 'assistant' : 'user'
         if (Array.isArray(m.images) && m.images.length > 0) {
@@ -120,21 +123,14 @@ const simulateAIResponse = async (userText) => {
       })
 
     const { data: res } = await http.post('/chat', { messages: contextMessages })
-    
+
     if (res.code === 0) {
       const fullResponse = res.data.content
-      aiMsg.content = '' // 清空“正在思考”
-      
-      // 逐字输出效果
-      let currentText = ''
-      for (let char of fullResponse) {
-        currentText += char
-        aiMsg.content = currentText
-        // 根据回复长度动态调整速度
-        await new Promise(resolve => setTimeout(resolve, fullResponse.length > 100 ? 10 : 30))
-        scrollToBottom()
-      }
+
+      // 直接设置完整响应，不使用逐字输出（避免频繁触发 watch）
+      aiMsg.content = fullResponse
       conversation.updatedAt = Date.now()
+      scrollToBottom()
       bumpConversation(conversation)
       scheduleSave()
     } else if (res.code === 42901) {
@@ -262,7 +258,8 @@ const scheduleSave = () => {
   if (saveTimer.value) clearTimeout(saveTimer.value)
   saveTimer.value = setTimeout(async () => {
     if (isTyping.value) {
-      scheduleSave()
+      // 不递归调用，而是延长等待时间
+      saveTimer.value = setTimeout(() => scheduleSave(), 600)
       return
     }
     await persistHistory()
@@ -319,16 +316,34 @@ onMounted(async () => {
   scrollToBottom()
 })
 
+onBeforeUnmount(() => {
+  // 清理定时器
+  if (saveTimer.value) {
+    clearTimeout(saveTimer.value)
+    saveTimer.value = null
+  }
+  // 停止正在进行的打字效果
+  isTyping.value = false
+})
+
 watch(
-  () => [conversations.value, activeConversationId.value],
+  () => conversations.value,
   () => {
     scheduleSave()
   },
   { deep: true }
 )
+
+watch(
+  () => activeConversationId.value,
+  () => {
+    scheduleSave()
+  }
+)
 </script>
 
 <template>
+  <div class="ai-chat-wrapper">
   <div class="ai-container">
     <!-- 左侧边栏 (可选，目前作为装饰或历史切换) -->
     <div class="ai-sidebar">
@@ -359,9 +374,9 @@ watch(
     <div class="ai-main">
       <el-scrollbar ref="scrollRef" class="chat-window">
         <div class="messages-wrapper">
-          <div 
-            v-for="(msg, index) in chatHistory" 
-            :key="index" 
+          <div
+            v-for="(msg, index) in chatHistory"
+            :key="`${activeConversationId}-${index}-${msg.time}`"
             :class="['message-row', msg.role === 'user' ? 'user-row' : 'ai-row']"
           >
             <div class="avatar">
@@ -475,6 +490,7 @@ watch(
       </el-button>
     </template>
   </el-dialog>
+  </div>
 </template>
 
 <style scoped>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { http } from '@/plugins/axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload, Download, Delete } from '@element-plus/icons-vue'
@@ -17,6 +17,7 @@ const columns = ref([])
 const rows = ref([])
 const mode = ref('raw')
 const summary = ref(null)
+const tableHeight = ref('600px')
 
 const resetData = () => {
   current.value = null
@@ -143,7 +144,22 @@ const handlePageChange = (val) => {
   fetchUploads()
 }
 
-onMounted(fetchUploads)
+// 响应式表格高度计算
+const updateTableHeight = () => {
+  const windowHeight = window.innerHeight
+  const offset = 360 // 顶部栏 + 工具栏 + 统计卡片
+  tableHeight.value = `${windowHeight - offset}px`
+}
+
+onMounted(() => {
+  fetchUploads()
+  updateTableHeight()
+  window.addEventListener('resize', updateTableHeight)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateTableHeight)
+})
 </script>
 
 <template>
@@ -223,7 +239,7 @@ onMounted(fetchUploads)
     </div>
 
     <div class="table-card">
-      <el-table :data="rows" v-loading="loading" class="data-table" :max-height="'calc(100vh - 360px)'">
+      <el-table :data="rows" v-loading="loading" class="data-table" :max-height="tableHeight">
         <el-table-column
           v-for="col in columns"
           :key="col.key"

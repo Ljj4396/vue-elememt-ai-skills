@@ -10,7 +10,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server/index.js"
+    "server": "node server/index.js",
+    "server:codex": "node server/index.js",
+    "server:claude": "node server/index.js claude"
   },
   "dependencies": {
     "axios": "^1.13.2",

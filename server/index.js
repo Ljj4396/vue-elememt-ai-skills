@@ -5,7 +5,15 @@ import { fileURLToPath } from 'node:url'
 import jwt from 'jsonwebtoken'
 import Busboy from 'busboy'
 import * as XLSX from 'xlsx'
-import 'dotenv/config' // 自动加载 .env 变量
+import dotenv from 'dotenv'
+// 根据启动参数加载不同的 .env 文件：npm run server:claude 或 npm run server:codex
+// 用法：node server/index.js codex  或  node server/index.js claude
+// .env = Codex 配置（默认），.env.claude = Claude 配置
+const providerArg = process.argv[2]?.toLowerCase()
+const envFile = providerArg === 'claude' ? '.env.claude' : '.env'
+const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
+dotenv.config({ path: join(projectRoot, envFile) })
+console.log(`加载配置文件: ${envFile}`)
 import { log } from 'node:console'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -679,21 +687,26 @@ const server = http.createServer(async (req, res) => {
         const API_KEY = process.env.AI_API_KEY
         const BASE_URL = process.env.AI_BASE_URL
         const MODEL = process.env.AI_MODEL
+        const PROVIDER = (process.env.AI_PROVIDER || 'claude').toLowerCase()
 
-        const response = await fetch(`${BASE_URL}/responses`, {
+        // 根据 AI_PROVIDER 自动适配端点和请求体
+        const isCodex = PROVIDER === 'codex'
+        const endpoint = isCodex ? '/responses' : '/chat/completions'
+        const mappedMessages = messages.map((m) => ({ role: m.role, content: m.content }))
+        const requestBody = isCodex
+          ? { model: MODEL, input: mappedMessages, stream: false }
+          : { model: MODEL, messages: mappedMessages, stream: false }
+
+        const response = await fetch(`${BASE_URL}${endpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${API_KEY}`
           },
-          body: JSON.stringify({
-            model: MODEL,
-            input: messages.map((m) => ({ role: m.role, content: m.content })),
-            stream: false
-          })
+          body: JSON.stringify(requestBody)
         })
         // 增强：先检查响应类型，防止 HTML 导致解析崩溃
-        const contentType = response.headers.get('content-type') || ''
+        const contentType = response.headers.get('content-type') || ''      
         if (!contentType.includes('application/json')) {
           const errorText = await response.text()
           console.error('API 返回非 JSON 响应:', errorText.slice(0, 200))
@@ -701,8 +714,6 @@ const server = http.createServer(async (req, res) => {
             detail: errorText.slice(0, 100) 
           })
         }
-      
-
         const data = await response.json()
         console.log(response, contentType, 'contentType', data)
         if (!response.ok) {
@@ -916,6 +927,7 @@ server.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`API server listening on http://localhost:${PORT}`)
   console.log('--- 环境配置检查 ---')
+  console.log('AI_PROVIDER:', process.env.AI_PROVIDER || 'claude (默认)')
   console.log('AI_BASE_URL:', process.env.AI_BASE_URL ? '已加载' : '未找到!')
   console.log('AI_MODEL:', process.env.AI_MODEL)
   console.log('--------------------')

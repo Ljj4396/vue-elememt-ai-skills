@@ -61,6 +61,12 @@ const routes = [
     component: () => import('@/views/AIChat.vue'),
     meta: { requiresAuth: true, title: '智能助手', permission: 'ai' },
   },
+  {
+    path: '/theme',
+    name: 'ThemeSelector',
+    component: () => import('@/views/ThemeSelector.vue'),
+    meta: { requiresAuth: true, title: '主题选择' },
+  },
 ]
 
 const router = createRouter({

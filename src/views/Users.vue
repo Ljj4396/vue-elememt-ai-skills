@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { http } from '@/plugins/axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, Edit, Delete, Refresh, Phone, Message } from '@element-plus/icons-vue'
@@ -7,6 +7,7 @@ import { Search, Plus, Edit, Delete, Refresh, Phone, Message } from '@element-pl
 const loading = ref(false)
 const users = ref([])
 const searchKeyword = ref('')
+const tableHeight = ref('600px')
 
 // 弹窗
 const dialogVisible = ref(false)
@@ -136,7 +137,22 @@ function formatTime(ts) {
   return d.toLocaleDateString('zh-CN') + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
-onMounted(loadUsers)
+// 响应式表格高度计算
+const updateTableHeight = () => {
+  const windowHeight = window.innerHeight
+  const offset = 360 // 顶部栏 + 工具栏 + 统计卡片
+  tableHeight.value = `${windowHeight - offset}px`
+}
+
+onMounted(() => {
+  loadUsers()
+  updateTableHeight()
+  window.addEventListener('resize', updateTableHeight)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateTableHeight)
+})
 </script>
 
 <template>
@@ -171,9 +187,20 @@ onMounted(loadUsers)
       </div>
     </div>
 
+    <!-- 骨架屏 -->
+    <div v-if="loading && !users.length" class="skeleton-container">
+      <div class="skeleton-card" v-for="i in 5" :key="i">
+        <div class="skeleton-avatar"></div>
+        <div class="skeleton-content">
+          <div class="skeleton-line skeleton-line-title"></div>
+          <div class="skeleton-line skeleton-line-text"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- 数据表格 -->
-    <div class="table-card">
-      <el-table :data="filteredUsers" v-loading="loading" class="data-table" :max-height="'calc(100vh - 360px)'">
+    <div v-else class="table-card">
+      <el-table :data="filteredUsers" v-loading="loading && users.length > 0" class="data-table" :max-height="tableHeight">
         <el-table-column prop="id" label="ID" width="80" align="center">
           <template #default="{ row }">
             <span class="id-tag">#{{ row.id }}</span>
@@ -478,6 +505,65 @@ onMounted(loadUsers)
 
 :deep(.el-input__inner) {
   color: #fff;
+}
+
+/* 骨架屏 */
+.skeleton-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+}
+
+.skeleton-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+.skeleton-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(139, 92, 246, 0.2);
+  flex-shrink: 0;
+}
+
+.skeleton-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeleton-line {
+  height: 12px;
+  background: rgba(139, 92, 246, 0.15);
+  border-radius: 4px;
+}
+
+.skeleton-line-title {
+  width: 30%;
+}
+
+.skeleton-line-text {
+  width: 60%;
+}
+
+@keyframes skeleton-loading {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* 响应式 */

@@ -1,0 +1,206 @@
+{
+  "timestamp": "2026-02-04T09:59:05.000Z",
+  "projectName": "vue-elment-ui",
+  "projectType": "Vue 3 + Element UI 管理系统",
+  "scanVersion": "1.0.0",
+  "modules": [
+    {
+      "path": "src/",
+      "name": "前端模块",
+      "type": "frontend",
+      "language": "JavaScript (Vue 3)",
+      "entry": "src/main.js",
+      "interfaces": [
+        {
+          "type": "router",
+          "file": "src/router/index.js",
+          "routes": [
+            "/login",
+            "/dashboard",
+            "/users",
+            "/permissions",
+            "/balance",
+            "/ai-requests",
+            "/fortune",
+            "/ai"
+          ]
+        },
+        {
+          "type": "http-client",
+          "file": "src/plugins/axios.js",
+          "baseURL": "/api",
+          "timeout": 30000
+        }
+      ],
+      "dependencies": {
+        "vue": "^3.5.26",
+        "element-plus": "^2.13.1",
+        "vue-router": "^4.6.4",
+        "pinia": "^3.0.4",
+        "axios": "^1.13.2"
+      },
+      "testDirectory": null,
+      "configFiles": [
+        "vite.config.js",
+        "jsconfig.json"
+      ],
+      "coverage": {
+        "scanned": true,
+        "filesScanned": 23,
+        "filesTotal": 23,
+        "percentage": 100
+      },
+      "gaps": [
+        "无自动化测试",
+        "缺少 TypeScript 类型定义",
+        "示例组件未清理（HelloWorld.vue 等）"
+      ]
+    },
+    {
+      "path": "server/",
+      "name": "后端模块",
+      "type": "backend",
+      "language": "JavaScript (Node.js)",
+      "entry": "server/index.js",
+      "interfaces": [
+        {
+          "type": "rest-api",
+          "baseURL": "http://localhost:3000/api",
+          "endpoints": [
+            "POST /login",
+            "GET /user/info",
+            "GET /users",
+            "POST /users",
+            "PUT /users/:id",
+            "DELETE /users/:id",
+            "POST /chat",
+            "GET /chat/history",
+            "PUT /chat/history",
+            "DELETE /chat/history",
+            "POST /ai/requests",
+            "GET /ai/requests",
+            "PUT /ai/requests/:id/approve",
+            "PUT /ai/requests/:id/reject",
+            "POST /balance/upload",
+            "GET /balance/list",
+            "DELETE /balance/:id",
+            "GET /health"
+          ]
+        }
+      ],
+      "dependencies": {
+        "jsonwebtoken": "^9.0.3",
+        "xlsx": "^0.18.5",
+        "busboy": "^1.6.0",
+        "dotenv": "^17.2.3"
+      },
+      "dataModel": {
+        "type": "json-file",
+        "file": "server/db.json",
+        "collections": [
+          "users",
+          "chatHistory",
+          "chatUsage",
+          "aiAccessRequests",
+          "balanceUploads"
+        ]
+      },
+      "testDirectory": null,
+      "configFiles": [
+        ".env"
+      ],
+      "coverage": {
+        "scanned": true,
+        "filesScanned": 2,
+        "filesTotal": 2,
+        "percentage": 100
+      },
+      "gaps": [
+        "无自动化测试",
+        "密码明文存储（安全风险）",
+        "缺少日志系统",
+        "缺少请求频率限制",
+        "CORS 策略过于宽松"
+      ]
+    }
+  ],
+  "statistics": {
+    "totalFiles": 25,
+    "scannedFiles": 25,
+    "coveragePercentage": 100,
+    "ignoredFiles": 0,
+    "ignoredDirectories": [
+      "node_modules",
+      "dist",
+      ".git",
+      ".github",
+      ".vscode",
+      ".cursor",
+      ".agents"
+    ]
+  },
+  "ignoreRules": {
+    "source": ".gitignore",
+    "patterns": [
+      "logs",
+      "*.log",
+      "npm-debug.log*",
+      "yarn-debug.log*",
+      "yarn-error.log*",
+      "pnpm-debug.log*",
+      "lerna-debug.log*",
+      "node_modules",
+      ".DS_Store",
+      "dist",
+      "dist-ssr",
+      "coverage",
+      "*.local",
+      ".vscode/*",
+      "!.vscode/extensions.json",
+      ".idea",
+      "*.suo",
+      "*.ntvs*",
+      "*.njsproj",
+      "*.sln",
+      "*.sw?",
+      "*.tsbuildinfo",
+      ".eslintcache",
+      "/cypress/videos/",
+      "/cypress/screenshots/",
+      "__screenshots__/",
+      ".cursor",
+      "final_review_gate.py",
+      ".agents",
+      ".github"
+    ]
+  },
+  "recommendations": {
+    "nextSteps": [
+      "补充自动化测试（前端：Vitest + @vue/test-utils，后端：Supertest）",
+      "迁移到 TypeScript 以增强类型安全",
+      "实现密码加密存储（bcrypt）",
+      "添加请求频率限制（express-rate-limit 或自定义中间件）",
+      "迁移到真实数据库（PostgreSQL/MySQL/MongoDB）",
+      "添加日志系统（Winston/Pino）",
+      "收紧 CORS 策略",
+      "清理示例组件（HelloWorld.vue, TheWelcome.vue 等）",
+      "添加 API 文档（Swagger/OpenAPI）",
+      "实现 HTTPS 支持"
+    ],
+    "priorityAreas": [
+      "安全性增强（密码加密、CORS、频率限制）",
+      "测试覆盖率提升",
+      "数据库迁移"
+    ]
+  },
+  "truncated": false,
+  "scanDuration": "约 2 分钟",
+  "notes": [
+    "项目结构清晰，前后端分离良好",
+    "使用 JSON 文件作为数据库，适合小型项目或原型开发",
+    "AI 聊天功能集成完善，支持多轮对话和图片上传",
+    "权限系统设计合理，支持细粒度控制",
+    "暗色主题 UI 设计现代化",
+    "建议尽快解决安全性问题（密码明文存储等）"
+  ]
+}

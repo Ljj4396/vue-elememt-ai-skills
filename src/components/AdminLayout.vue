@@ -48,6 +48,7 @@ const menuItems = [
   },
   { path: '/fortune', name: 'Fortune', title: '每日运势', icon: MagicStick },
   { path: '/ai', name: 'AIChat', title: '智能助手', icon: ChatDotRound, permission: 'ai' },
+  { path: '/theme', name: 'ThemeSelector', title: '主题选择', icon: Setting },
 ]
 
 const activeMenu = computed(() => route.path)
@@ -161,17 +162,19 @@ onMounted(loadUserInfo)
 .admin-layout {
   display: flex;
   min-height: 100vh;
-  background: #0a0a0f;
+  background: var(--theme-bg-primary, #0a0a0f);
 }
 
 /* 侧边栏 */
 .sidebar {
-  width: 240px;
-  background: linear-gradient(180deg, #13131a 0%, #0d0d12 100%);
-  border-right: 1px solid rgba(139, 92, 246, 0.1);
+  width: 18%;
+  max-width: 240px;
+  min-width: 200px;
+  background: linear-gradient(180deg, var(--theme-bg-secondary, #13131a) 0%, var(--theme-bg-primary, #0d0d12) 100%);
+  border-right: 1px solid var(--theme-border, rgba(139, 92, 246, 0.1));
   display: flex;
   flex-direction: column;
-  transition: width 0.3s ease;
+  transition: all 0.3s ease;
   position: fixed;
   left: 0;
   top: 0;
@@ -180,36 +183,38 @@ onMounted(loadUserInfo)
 }
 
 .admin-layout.collapsed .sidebar {
-  width: 72px;
+  width: 5%;
+  max-width: 72px;
+  min-width: 60px;
 }
 
 .sidebar-header {
-  padding: 20px;
+  padding: 1.25rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
 .logo-icon {
-  width: 40px;
-  height: 40px;
+  width: 2.5rem;
+  height: 2.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  background: linear-gradient(135deg, var(--theme-primary, #8b5cf6), var(--theme-secondary, #6366f1));
   border-radius: 10px;
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
 }
 
 .logo-text {
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 600;
   color: #fff;
   white-space: nowrap;
@@ -218,17 +223,17 @@ onMounted(loadUserInfo)
 /* 菜单 */
 .sidebar-menu {
   flex: 1;
-  padding: 16px 12px;
+  padding: 1rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
 }
 
 .menu-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
   border-radius: 10px;
   color: rgba(255, 255, 255, 0.6);
   text-decoration: none;
@@ -248,13 +253,13 @@ onMounted(loadUserInfo)
 }
 
 .menu-icon {
-  width: 20px;
-  height: 20px;
+  width: 1.25rem;
+  height: 1.25rem;
   flex-shrink: 0;
 }
 
 .menu-text {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -265,20 +270,20 @@ onMounted(loadUserInfo)
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 20px;
-  background: #8b5cf6;
+  height: 1.25rem;
+  background: var(--theme-primary, #8b5cf6);
   border-radius: 0 3px 3px 0;
 }
 
 /* 折叠按钮 */
 .sidebar-footer {
-  padding: 16px;
+  padding: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .collapse-btn {
   width: 100%;
-  padding: 10px;
+  padding: 0.625rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 8px;
@@ -292,26 +297,28 @@ onMounted(loadUserInfo)
 
 .collapse-btn:hover {
   background: rgba(139, 92, 246, 0.1);
-  color: #8b5cf6;
+  color: var(--theme-primary, #8b5cf6);
 }
 
 /* 主内容区 */
 .main-area {
   flex: 1;
-  margin-left: 240px;
+  margin-left: 18%;
+  min-width: 320px;
   display: flex;
   flex-direction: column;
   transition: margin-left 0.3s ease;
 }
 
 .admin-layout.collapsed .main-area {
-  margin-left: 72px;
+  margin-left: 5%;
 }
 
 /* 顶部栏 */
 .topbar {
-  height: 60px;
-  padding: 0 24px;
+  height: 3.75rem;
+  min-width: 320px;
+  padding: 0 1.5rem;
   background: rgba(19, 19, 26, 0.95);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
@@ -325,38 +332,38 @@ onMounted(loadUserInfo)
 
 .page-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--theme-text, #fff);
 }
 
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 1rem;
 }
 
 .user-dropdown {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
 }
 
 .user-avatar {
-  width: 36px;
-  height: 36px;
+  width: 2.25rem;
+  height: 2.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #8b5cf6, #ec4899);
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #fff;
 }
 
 .user-name {
-  font-size: 14px;
+  font-size: 0.875rem;
   color: rgba(255, 255, 255, 0.8);
 }
 
@@ -364,8 +371,8 @@ onMounted(loadUserInfo)
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
@@ -376,31 +383,82 @@ onMounted(loadUserInfo)
 }
 
 .setting-icon {
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   color: rgba(255, 255, 255, 0.5);
 }
 
 /* 内容区 */
 .content-area {
   flex: 1;
-  background: #0a0a0f;
-  overflow: auto;
+  min-width: 280px;
+  background: var(--theme-bg-primary, #0a0a0f);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* 响应式 */
 @media (max-width: 768px) {
   .sidebar {
-    width: 72px;
+    width: 5%;
+    max-width: 72px;
   }
 
   .admin-layout .main-area {
-    margin-left: 72px;
+    margin-left: 5%;
   }
 
   .logo-text,
   .menu-text {
     display: none;
+  }
+}
+
+/* 针对 200% 以上缩放优化 */
+@media (min-resolution: 2dppx) {
+  .sidebar {
+    width: 15%;
+    max-width: 200px;
+  }
+
+  .admin-layout.collapsed .sidebar {
+    width: 4%;
+    max-width: 60px;
+  }
+
+  .main-area {
+    margin-left: 15%;
+  }
+
+  .admin-layout.collapsed .main-area {
+    margin-left: 4%;
+  }
+
+  /* 减小间距 */
+  .topbar {
+    padding: 0 1rem;
+  }
+
+  /* 菜单项间距 */
+  .menu-item {
+    padding: 0.625rem 1rem;
+  }
+}
+
+/* 针对极端缩放（250%+）自动折叠侧边栏 */
+@media (min-resolution: 2.5dppx) {
+  .sidebar {
+    width: 5%;
+    max-width: 72px;
+  }
+
+  .logo-text,
+  .menu-text {
+    display: none;
+  }
+
+  .main-area {
+    margin-left: 5%;
   }
 }
 </style>
