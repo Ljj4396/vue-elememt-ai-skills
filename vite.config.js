@@ -4,10 +4,30 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import AutoImport from 'unplugin-auto-import/vite'
+import UnoCSS from 'unocss/vite'
+
+function getPackageName(id) {
+  const normalized = id.replace(/\\/g, '/')
+  const parts = normalized.split('/node_modules/')
+  if (parts.length < 2) return null
+
+  let packagePath = parts[parts.length - 1]
+  if (packagePath.startsWith('.pnpm/')) {
+    const pnpmParts = packagePath.split('/')
+    packagePath = pnpmParts.slice(1).join('/')
+  }
+
+  const segments = packagePath.split('/')
+  if (segments[0].startsWith('@')) {
+    return `${segments[0]}/${segments[1]}`
+  }
+  return segments[0]
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
+    UnoCSS(),
     vue(),
     vueDevTools(),
     AutoImport({
@@ -49,17 +69,38 @@ export default defineConfig({
       output: {
         // 拆分大体积依赖，降低主包体积
         manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('element-plus')) return 'element-plus'
-            if (id.includes('@element-plus/icons-vue')) return 'element-plus-icons'
-            if (id.includes('vue')) return 'vue-vendor'
-            return 'vendor'
+          const pkg = getPackageName(id)
+          if (!pkg) return
+
+          if (pkg === 'element-plus') return 'element-plus'
+          if (pkg === '@element-plus/icons-vue') return 'element-plus-icons'
+          if (pkg === 'xlsx') return 'xlsx'
+          if (pkg === 'axios') return 'axios'
+          if (pkg === 'lunar-typescript') return 'lunar'
+          if (
+            pkg === 'vue' ||
+            pkg === 'vue-router' ||
+            pkg === 'pinia' ||
+            pkg.startsWith('@vue/')
+          ) {
+            return 'vue-core'
           }
+          return 'vendor'
         },
       },
     },
+    chunkSizeWarningLimit: 700,
   },
   resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url))
+    },
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['vitest-localstorage-mock'],
+    mockReset: false,
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
