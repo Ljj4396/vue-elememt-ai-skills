@@ -14,7 +14,6 @@ const envFile = providerArg === 'claude' ? '.env.claude' : '.env'
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 dotenv.config({ path: join(projectRoot, envFile) })
 console.log(`加载配置文件: ${envFile}`)
-import { log } from 'node:console'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)

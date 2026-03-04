@@ -1,0 +1,3 @@
+.data-table .el-table__inner-wrapper::before {
+  display: none;
+}

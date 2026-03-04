@@ -1,7 +1,8 @@
 <script setup>
   import { ref, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
-  import { http, setToken, setUserPermissions, setIsAdmin } from '@/plugins/axios'
+  import { http } from '@/plugins/axios'
+  import { applyLoginSession } from '@/services/auth-service'
   import { ElMessage } from 'element-plus'
 
   const router = useRouter()
@@ -40,9 +41,10 @@
     try {
       const { data: res } = await http.post('/login', form.value)
       if (res.code === 0) {
-        setToken(res.data.token)
-        setUserPermissions(res.data.user?.permissions || {})
-        setIsAdmin(res.data.user?.isAdmin === true)
+        applyLoginSession({
+          token: res.data.token,
+          user: res.data.user,
+        })
         ElMessage.success(`欢迎回来 ${res.data.user.nickname}`)
         const redirect = route.query.redirect || '/'
         router.push(redirect)

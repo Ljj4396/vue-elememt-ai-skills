@@ -1,12 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import {
-  getToken,
-  getUserPermissions,
-  setUserPermissions,
-  getIsAdmin,
-  setIsAdmin,
-  http,
-} from '@/plugins/axios'
+import { ElMessage } from 'element-plus'
+import { setUnauthorizedHandler } from '@/plugins/axios'
+import { getToken } from '@/services/auth-storage'
+import { fetchAndCacheUserInfo, getCachedAuth } from '@/services/auth-service'
 
 const routes = [
   {
@@ -77,19 +73,28 @@ const router = createRouter({
   },
 })
 
-// 全局路由守卫
+setUnauthorizedHandler(() => {
+  const currentRoute = router.currentRoute.value
+  if (currentRoute.name === 'Login') {
+    return
+  }
+  ElMessage.error('Session expired, please login again')
+  return router.replace({
+    name: 'Login',
+    query: { redirect: currentRoute.fullPath },
+  })
+})
+
 async function resolveAuth() {
-  const cachedPermissions = getUserPermissions()
-  const cachedAdmin = getIsAdmin()
-  if (cachedPermissions || cachedAdmin) {
-    return { permissions: cachedPermissions || {}, isAdmin: cachedAdmin }
+  const cached = getCachedAuth()
+  if (Object.keys(cached.permissions || {}).length > 0 || cached.isAdmin) {
+    return cached
   }
   try {
-    const { data: res } = await http.get('/user/info')
-    if (res.code === 0) {
-      setUserPermissions(res.data.permissions || {})
-      setIsAdmin(res.data.isAdmin === true)
-      return { permissions: res.data.permissions || {}, isAdmin: res.data.isAdmin === true }
+    const userInfo = await fetchAndCacheUserInfo()
+    return {
+      permissions: userInfo.permissions || {},
+      isAdmin: userInfo.isAdmin === true,
     }
   } catch {
     // ignore
@@ -97,28 +102,33 @@ async function resolveAuth() {
   return { permissions: {}, isAdmin: false }
 }
 
-// 全局路由守卫
 router.beforeEach(async (to, from, next) => {
   const token = getToken()
   const requiresAuth = to.meta.requiresAuth !== false
 
   if (requiresAuth && !token) {
-    next({ name: 'Login', query: { redirect: to.fullPath } })
-  } else if (to.name === 'Login' && token) {
-    next({ name: 'Dashboard' })
-  } else {
-    const requiredPermission = to.meta.permission
-    if (requiresAuth && requiredPermission) {
-      const { permissions, isAdmin } = await resolveAuth()
-      if (to.meta.adminOnly && !isAdmin) {
-        return next({ name: 'Dashboard' })
-      }
-      if (!isAdmin && permissions?.[requiredPermission] !== true) {
-        return next({ name: 'Dashboard' })
-      }
-    }
-    next()
+    return next({ name: 'Login', query: { redirect: to.fullPath } })
   }
+
+  if (to.name === 'Login' && token) {
+    return next({ name: 'Dashboard' })
+  }
+
+  const requiredPermission = to.meta.permission
+  const requiresPermissionCheck = requiresAuth && (requiredPermission || to.meta.adminOnly)
+  if (!requiresPermissionCheck) {
+    return next()
+  }
+
+  const { permissions, isAdmin } = await resolveAuth()
+  if (to.meta.adminOnly && !isAdmin) {
+    return next({ name: 'Dashboard' })
+  }
+  if (requiredPermission && !isAdmin && permissions?.[requiredPermission] !== true) {
+    return next({ name: 'Dashboard' })
+  }
+
+  return next()
 })
 
 export default router

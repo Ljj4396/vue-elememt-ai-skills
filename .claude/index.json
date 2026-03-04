@@ -1,14 +1,15 @@
 {
-  "timestamp": "2026-02-04T09:59:05.000Z",
+  "timestamp": "2026-03-04T14:24:36.000Z",
   "projectName": "vue-elment-ui",
   "projectType": "Vue 3 + Element UI 管理系统",
-  "scanVersion": "1.0.0",
+  "scanVersion": "2.0.0",
+  "previousScan": "2026-02-04T09:59:05.000Z",
   "modules": [
     {
       "path": "src/",
       "name": "前端模块",
       "type": "frontend",
-      "language": "JavaScript (Vue 3)",
+      "language": "JavaScript (Vue 3 + UnoCSS)",
       "entry": "src/main.js",
       "interfaces": [
         {
@@ -22,26 +23,68 @@
             "/balance",
             "/ai-requests",
             "/fortune",
-            "/ai"
+            "/ai",
+            "/theme"
           ]
         },
         {
           "type": "http-client",
           "file": "src/plugins/axios.js",
           "baseURL": "/api",
-          "timeout": 30000
+          "timeout": 30000,
+          "note": "认证存储已重构至 src/services/auth-storage.js"
         }
+      ],
+      "services": [
+        {
+          "file": "src/services/auth-storage.js",
+          "role": "localStorage 认证数据读写（token / permissions / isAdmin）",
+          "exports": ["getToken", "setToken", "removeToken", "getUserPermissions", "setUserPermissions", "getIsAdmin", "setIsAdmin", "clearAuthSession"]
+        },
+        {
+          "file": "src/services/auth-service.js",
+          "role": "认证业务逻辑（登录 session、用户信息获取）",
+          "exports": ["getCachedAuth", "cacheUserAuth", "applyLoginSession", "fetchAndCacheUserInfo", "logoutSession"]
+        }
+      ],
+      "stores": [
+        {
+          "file": "src/stores/theme.js",
+          "storeId": "theme",
+          "role": "4 种主题动态切换（CSS 变量 + localStorage 持久化）",
+          "themes": ["default", "fortune", "ai", "harmony"]
+        }
+      ],
+      "views": [
+        { "file": "src/views/Login.vue", "route": "/login", "description": "登录页（打字机动画 + 粒子背景）" },
+        { "file": "src/views/Dashboard.vue", "route": "/dashboard", "description": "仪表盘（统计卡片 + 快捷操作）" },
+        { "file": "src/views/Users.vue", "route": "/users", "description": "用户管理 CRUD", "permission": "users" },
+        { "file": "src/views/Permissions.vue", "route": "/permissions", "description": "权限控制开关", "permission": "users" },
+        { "file": "src/views/BalanceSheet.vue", "route": "/balance", "description": "余额表上传与查看" },
+        { "file": "src/views/AIChat.vue", "route": "/ai", "description": "AI 智能助手（多轮对话 + 图片）", "permission": "ai" },
+        { "file": "src/views/AIRequests.vue", "route": "/ai-requests", "description": "权限申请审批（仅管理员）", "adminOnly": true },
+        { "file": "src/views/FortuneCards.vue", "route": "/fortune", "description": "每日运势（农历 + 星座 + 生肖）" },
+        { "file": "src/views/ThemeSelector.vue", "route": "/theme", "description": "主题选择（4 种主题卡片）" }
       ],
       "dependencies": {
         "vue": "^3.5.26",
         "element-plus": "^2.13.1",
         "vue-router": "^4.6.4",
         "pinia": "^3.0.4",
-        "axios": "^1.13.2"
+        "axios": "^1.13.2",
+        "unocss": "^66.6.1",
+        "lunar-typescript": "^1.8.6"
+      },
+      "devDependencies": {
+        "@vitejs/plugin-vue": "^6.0.3",
+        "unplugin-auto-import": "^20.3.0",
+        "vite": "^7.3.0",
+        "vite-plugin-vue-devtools": "^8.0.5"
       },
       "testDirectory": null,
       "configFiles": [
         "vite.config.js",
+        "uno.config.js",
         "jsconfig.json"
       ],
       "coverage": {
@@ -51,25 +94,40 @@
         "percentage": 100
       },
       "gaps": [
-        "无自动化测试",
+        "无自动化测试（建议优先补充 auth-storage.js 和路由守卫测试）",
         "缺少 TypeScript 类型定义",
-        "示例组件未清理（HelloWorld.vue 等）"
+        "AIChat.vue 完整代码未全部读取（仅读取前 80 行）"
+      ],
+      "newSinceLastScan": [
+        "src/services/auth-storage.js",
+        "src/services/auth-service.js",
+        "src/stores/theme.js",
+        "src/views/FortuneCards.vue",
+        "src/views/ThemeSelector.vue",
+        "src/assets/uno-overrides.css",
+        "uno.config.js（根目录）"
       ]
     },
     {
       "path": "server/",
       "name": "后端模块",
       "type": "backend",
-      "language": "JavaScript (Node.js)",
+      "language": "JavaScript (Node.js ESM)",
       "entry": "server/index.js",
+      "startupArgs": {
+        "default": "node server/index.js (加载 .env)",
+        "claude": "node server/index.js claude (加载 .env.claude)"
+      },
       "interfaces": [
         {
           "type": "rest-api",
           "baseURL": "http://localhost:3000/api",
           "endpoints": [
+            "GET /health",
             "POST /login",
             "GET /user/info",
             "GET /users",
+            "GET /users/:id",
             "POST /users",
             "PUT /users/:id",
             "DELETE /users/:id",
@@ -84,10 +142,32 @@
             "POST /balance/upload",
             "GET /balance/list",
             "DELETE /balance/:id",
-            "GET /health"
+            "GET /items",
+            "GET /items/:id",
+            "POST /items",
+            "PUT /items/:id",
+            "DELETE /items/:id"
           ]
         }
       ],
+      "aiProviders": {
+        "codex": {
+          "envFile": ".env",
+          "endpoint": "/responses",
+          "requestFormat": "{ model, input: messages, stream: false }"
+        },
+        "claude": {
+          "envFile": ".env.claude",
+          "endpoint": "/chat/completions",
+          "requestFormat": "{ model, messages, stream: false }"
+        }
+      },
+      "constants": {
+        "JWT_EXPIRES_IN": "1h",
+        "AI_DAILY_LIMIT": 10,
+        "DEFAULT_ADMIN_USERNAME": "zhangsan",
+        "DEFAULT_PERMISSIONS": { "users": true, "ai": true, "vip": false }
+      },
       "dependencies": {
         "jsonwebtoken": "^9.0.3",
         "xlsx": "^0.18.5",
@@ -97,22 +177,26 @@
       "dataModel": {
         "type": "json-file",
         "file": "server/db.json",
+        "backupFile": "server/db.json.tmp",
         "collections": [
           "users",
           "chatHistory",
           "chatUsage",
           "aiAccessRequests",
-          "balanceUploads"
+          "balanceUploads",
+          "items"
         ]
       },
       "testDirectory": null,
       "configFiles": [
-        ".env"
+        ".env",
+        ".env.claude",
+        "server/.env.codex"
       ],
       "coverage": {
         "scanned": true,
-        "filesScanned": 2,
-        "filesTotal": 2,
+        "filesScanned": 3,
+        "filesTotal": 3,
         "percentage": 100
       },
       "gaps": [
@@ -120,15 +204,15 @@
         "密码明文存储（安全风险）",
         "缺少日志系统",
         "缺少请求频率限制",
-        "CORS 策略过于宽松"
+        "CORS 策略过于宽松（Access-Control-Allow-Origin: *）",
+        "仅支持 HTTP（无 HTTPS）"
       ]
     }
   ],
   "statistics": {
-    "totalFiles": 25,
-    "scannedFiles": 25,
+    "totalSourceFiles": 30,
+    "scannedFiles": 30,
     "coveragePercentage": 100,
-    "ignoredFiles": 0,
     "ignoredDirectories": [
       "node_modules",
       "dist",
@@ -137,70 +221,68 @@
       ".vscode",
       ".cursor",
       ".agents"
+    ],
+    "skippedFiles": [
+      "server/db.json（仅读取前 60 行，数据文件无需全量扫描）",
+      "src/views/AIChat.vue（仅读取前 80 行，完整代码未全部覆盖）",
+      "src/views/BalanceSheet.vue（仅读取前 80 行）",
+      "src/views/Users.vue（仅读取前 60 行）",
+      "src/views/Permissions.vue（仅读取前 60 行）"
     ]
   },
   "ignoreRules": {
     "source": ".gitignore",
     "patterns": [
-      "logs",
-      "*.log",
-      "npm-debug.log*",
-      "yarn-debug.log*",
-      "yarn-error.log*",
-      "pnpm-debug.log*",
-      "lerna-debug.log*",
-      "node_modules",
-      ".DS_Store",
-      "dist",
-      "dist-ssr",
-      "coverage",
-      "*.local",
-      ".vscode/*",
-      "!.vscode/extensions.json",
-      ".idea",
-      "*.suo",
-      "*.ntvs*",
-      "*.njsproj",
-      "*.sln",
-      "*.sw?",
-      "*.tsbuildinfo",
-      ".eslintcache",
-      "/cypress/videos/",
-      "/cypress/screenshots/",
-      "__screenshots__/",
-      ".cursor",
-      "final_review_gate.py",
-      ".agents",
-      ".github"
+      "logs", "*.log", "npm-debug.log*", "yarn-debug.log*", "yarn-error.log*",
+      "pnpm-debug.log*", "lerna-debug.log*", "node_modules", ".DS_Store",
+      "dist", "dist-ssr", "coverage", "*.local", ".vscode/*",
+      "!.vscode/extensions.json", ".idea", "*.suo", "*.ntvs*", "*.njsproj",
+      "*.sln", "*.sw?", "*.tsbuildinfo", ".eslintcache",
+      "/cypress/videos/", "/cypress/screenshots/", "__screenshots__/",
+      ".cursor", "final_review_gate.py", ".agents", ".github", "CLAUDE.md"
+    ]
+  },
+  "gaps": {
+    "frontend": [
+      { "module": "src/views/AIChat.vue", "issue": "仅读取前 80 行，多会话管理、图片上传逻辑未完整覆盖", "priority": "low" },
+      { "module": "src/views/BalanceSheet.vue", "issue": "仅读取前 80 行，分页、下载、预览逻辑未完整覆盖", "priority": "low" },
+      { "module": "src/views/Users.vue", "issue": "仅读取前 60 行，表单验证逻辑未完整覆盖", "priority": "low" },
+      { "module": "src/views/Permissions.vue", "issue": "仅读取前 60 行，Switch 更新逻辑未完整覆盖", "priority": "low" },
+      { "module": "全项目", "issue": "无自动化测试（测试覆盖率 0%）", "priority": "high" }
+    ],
+    "backend": [
+      { "module": "server/index.js", "issue": "无自动化测试", "priority": "high" },
+      { "module": "server/index.js", "issue": "密码明文存储", "priority": "high" },
+      { "module": "server/index.js", "issue": "无请求频率限制", "priority": "medium" }
     ]
   },
   "recommendations": {
     "nextSteps": [
+      "优先补充：src/views/AIChat.vue 第 80 行以后的完整代码扫描（多会话逻辑）",
+      "优先补充：src/views/BalanceSheet.vue 第 80 行以后的完整代码扫描（Excel 导出逻辑）",
       "补充自动化测试（前端：Vitest + @vue/test-utils，后端：Supertest）",
-      "迁移到 TypeScript 以增强类型安全",
+      "优先测试 auth-storage.js、auth-service.js、路由守卫",
       "实现密码加密存储（bcrypt）",
-      "添加请求频率限制（express-rate-limit 或自定义中间件）",
+      "添加请求频率限制（防止暴力破解）",
       "迁移到真实数据库（PostgreSQL/MySQL/MongoDB）",
       "添加日志系统（Winston/Pino）",
       "收紧 CORS 策略",
-      "清理示例组件（HelloWorld.vue, TheWelcome.vue 等）",
-      "添加 API 文档（Swagger/OpenAPI）",
-      "实现 HTTPS 支持"
+      "添加 API 文档（Swagger/OpenAPI）"
     ],
     "priorityAreas": [
       "安全性增强（密码加密、CORS、频率限制）",
-      "测试覆盖率提升",
-      "数据库迁移"
+      "测试覆盖率提升（当前 0%）",
+      "数据库迁移（从 JSON 文件迁移）"
     ]
   },
   "truncated": false,
-  "scanDuration": "约 2 分钟",
   "notes": [
-    "项目结构清晰，前后端分离良好",
-    "使用 JSON 文件作为数据库，适合小型项目或原型开发",
-    "AI 聊天功能集成完善，支持多轮对话和图片上传",
-    "权限系统设计合理，支持细粒度控制",
-    "暗色主题 UI 设计现代化",
-    "建议尽快解决安全性问题（密码明文存储等）"
+    "本次扫描为第二次全量扫描，新增了 services/ 层、theme store、FortuneCards、ThemeSelector 等模块",
+    "认证架构已重构：auth-storage.js（存储）→ auth-service.js（业务）→ router（守卫）三层分离",
+    "AI 接口现支持双 Provider（codex/claude），通过启动参数自动切换，无需修改代码",
+    "UnoCSS 已集成，与 scoped CSS 共用，uno.config.js 定义了大量业务快捷类",
+    "主题系统完整：4 种主题，CSS 变量动态切换，localStorage 持久化，响应式覆盖",
+    "JSON 数据库原子写入：先写 tmp 文件再覆写主文件，降低数据损坏风险",
+    "部分 views 代码仅读取前 60-80 行，完整逻辑请参见源文件"
   ]
 }

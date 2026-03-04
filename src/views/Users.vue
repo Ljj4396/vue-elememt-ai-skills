@@ -1,15 +1,15 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { http } from '@/plugins/axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, Edit, Delete, Refresh, Phone, Message } from '@element-plus/icons-vue'
 
-const loading = ref(false)
+const listLoading = ref(false)
+const submitLoading = ref(false)
 const users = ref([])
 const searchKeyword = ref('')
-const tableHeight = ref('600px')
+const tableHeight = ref('560px')
 
-// 弹窗
 const dialogVisible = ref(false)
 const dialogTitle = ref('新增用户')
 const isEdit = ref(false)
@@ -31,117 +31,140 @@ const rules = {
   phone: [{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }],
 }
 
-// 过滤后的用户列表
 const filteredUsers = computed(() => {
-  if (!searchKeyword.value) return users.value
-  const kw = searchKeyword.value.toLowerCase()
-  return users.value.filter(
-    (u) =>
-      u.username?.toLowerCase().includes(kw) ||
-      u.nickname?.toLowerCase().includes(kw) ||
-      u.account?.toLowerCase().includes(kw) ||
-      u.phone?.includes(kw) ||
-      u.email?.toLowerCase().includes(kw)
-  )
+  const keyword = searchKeyword.value.trim().toLowerCase()
+  if (!keyword) return users.value
+  return users.value.filter((item) => {
+    return (
+      item.username?.toLowerCase().includes(keyword) ||
+      item.nickname?.toLowerCase().includes(keyword) ||
+      item.account?.toLowerCase().includes(keyword) ||
+      item.phone?.includes(keyword) ||
+      item.email?.toLowerCase().includes(keyword)
+    )
+  })
 })
 
-// 加载用户列表
+const stats = computed(() => {
+  const total = users.value.length
+  const visible = filteredUsers.value.length
+  const contactBound = users.value.filter((item) => item.phone || item.email).length
+  return { total, visible, contactBound }
+})
+
 async function loadUsers() {
-  loading.value = true
+  listLoading.value = true
   try {
     const { data: res } = await http.get('/users')
     if (res.code === 0) {
-      users.value = res.data
+      users.value = Array.isArray(res.data) ? res.data : []
     } else {
-      ElMessage.error(res.data?.message || '加载失败')
+      ElMessage.error(res.data?.message || '加载用户失败')
     }
-  } catch (e) {
-    ElMessage.error('网络错误')
+  } catch (error) {
+    ElMessage.error('网络错误，请稍后重试')
+    console.error('loadUsers failed', error)
   } finally {
-    loading.value = false
+    listLoading.value = false
   }
 }
 
-// 打开新增弹窗
 function handleAdd() {
   isEdit.value = false
   dialogTitle.value = '新增用户'
-  form.value = { id: null, username: '', password: '', nickname: '', account: '', phone: '', email: '' }
+  form.value = {
+    id: null,
+    username: '',
+    password: '',
+    nickname: '',
+    account: '',
+    phone: '',
+    email: '',
+  }
   dialogVisible.value = true
 }
 
-// 打开编辑弹窗
 function handleEdit(row) {
   isEdit.value = true
   dialogTitle.value = '编辑用户'
-  form.value = { ...row, password: '' }
+  form.value = {
+    ...row,
+    password: '',
+  }
   dialogVisible.value = true
 }
 
-// 提交表单
 async function handleSubmit() {
   if (!formRef.value) return
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
 
-  loading.value = true
+  submitLoading.value = true
   try {
     const payload = { ...form.value }
-    if (isEdit.value && !payload.password) delete payload.password
+    if (isEdit.value && !payload.password) {
+      delete payload.password
+    }
 
-    const { data: res } = isEdit.value
-      ? await http.put(`/users/${form.value.id}`, payload)
-      : await http.post('/users', payload)
+    const request = isEdit.value
+      ? http.put(`/users/${form.value.id}`, payload)
+      : http.post('/users', payload)
+    const { data: res } = await request
 
     if (res.code === 0) {
-      ElMessage.success(isEdit.value ? '更新成功' : '创建成功')
+      ElMessage.success(isEdit.value ? '用户信息已更新' : '用户创建成功')
       dialogVisible.value = false
-      loadUsers()
+      await loadUsers()
     } else {
-      ElMessage.error(res.data?.message || '操作失败')
+      ElMessage.error(res.data?.message || '保存失败')
     }
-  } catch (e) {
-    ElMessage.error('网络错误')
+  } catch (error) {
+    ElMessage.error('保存失败，请稍后再试')
+    console.error('handleSubmit failed', error)
   } finally {
-    loading.value = false
+    submitLoading.value = false
   }
 }
 
-// 删除用户
 async function handleDelete(row) {
   try {
-    await ElMessageBox.confirm(`确定要删除用户「${row.nickname || row.username}」吗？`, '删除确认', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-    loading.value = true
+    await ElMessageBox.confirm(
+      `确定要删除用户「${row.nickname || row.username}」吗？`,
+      '删除确认',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    )
+
+    listLoading.value = true
     const { data: res } = await http.delete(`/users/${row.id}`)
     if (res.code === 0) {
       ElMessage.success('删除成功')
-      loadUsers()
+      await loadUsers()
     } else {
       ElMessage.error(res.data?.message || '删除失败')
     }
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error('操作失败')
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+      console.error('handleDelete failed', error)
+    }
   } finally {
-    loading.value = false
+    listLoading.value = false
   }
 }
 
-// 格式化时间
 function formatTime(ts) {
   if (!ts) return '-'
-  const d = new Date(ts)
-  return d.toLocaleDateString('zh-CN') + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  const date = new Date(ts)
+  return `${date.toLocaleDateString('zh-CN')} ${date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
 }
 
-// 响应式表格高度计算
-const updateTableHeight = () => {
-  const windowHeight = window.innerHeight
-  const offset = 360 // 顶部栏 + 工具栏 + 统计卡片
-  tableHeight.value = `${windowHeight - offset}px`
+function updateTableHeight() {
+  const offset = 360
+  tableHeight.value = `${Math.max(300, window.innerHeight - offset)}px`
 }
 
 onMounted(() => {
@@ -157,116 +180,117 @@ onUnmounted(() => {
 
 <template>
   <div class="users-page">
-    <!-- 统计卡片 -->
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-number">{{ users.length }}</div>
-        <div class="stat-label">总用户数</div>
+    <section class="users-hero">
+      <div class="hero-copy">
+        <p class="hero-kicker">User Center</p>
+        <h2>用户与账号管理</h2>
+        <p>支持搜索、编辑、创建与删除用户，面向运营后台的高频管理场景。</p>
       </div>
-      <div class="stat-card">
-        <div class="stat-number">{{ filteredUsers.length }}</div>
-        <div class="stat-label">当前显示</div>
+      <div class="hero-stats">
+        <article class="hero-stat">
+          <span class="hero-stat-label">用户总数</span>
+          <strong class="hero-stat-value">{{ stats.total }}</strong>
+        </article>
+        <article class="hero-stat">
+          <span class="hero-stat-label">当前显示</span>
+          <strong class="hero-stat-value">{{ stats.visible }}</strong>
+        </article>
+        <article class="hero-stat">
+          <span class="hero-stat-label">已绑定联系方式</span>
+          <strong class="hero-stat-value">{{ stats.contactBound }}</strong>
+        </article>
       </div>
-    </div>
+    </section>
 
-    <!-- 工具栏 -->
-    <div class="toolbar-card">
+    <section class="toolbar-card">
       <div class="toolbar">
         <el-input
           v-model="searchKeyword"
-          placeholder="搜索用户名、昵称、账号、手机、邮箱..."
+          placeholder="搜索用户名、昵称、账号、手机号、邮箱"
           clearable
           :prefix-icon="Search"
           class="search-input"
-          style="width: 320px"
         />
         <div class="toolbar-actions">
-          <el-button :icon="Refresh" @click="loadUsers" :loading="loading">刷新</el-button>
+          <el-button :icon="Refresh" @click="loadUsers" :loading="listLoading">刷新</el-button>
           <el-button type="primary" :icon="Plus" @click="handleAdd">新增用户</el-button>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 骨架屏 -->
-    <div v-if="loading && !users.length" class="skeleton-container">
-      <div class="skeleton-card" v-for="i in 5" :key="i">
-        <div class="skeleton-avatar"></div>
-        <div class="skeleton-content">
-          <div class="skeleton-line skeleton-line-title"></div>
-          <div class="skeleton-line skeleton-line-text"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 数据表格 -->
-    <div v-else class="table-card">
-      <el-table :data="filteredUsers" v-loading="loading && users.length > 0" class="data-table" :max-height="tableHeight">
+    <section class="table-card">
+      <el-table
+        :data="filteredUsers"
+        row-key="id"
+        v-loading="listLoading"
+        class="data-table"
+        :max-height="tableHeight"
+      >
         <el-table-column prop="id" label="ID" width="80" align="center">
           <template #default="{ row }">
             <span class="id-tag">#{{ row.id }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="username" label="用户名" min-width="140">
+        <el-table-column prop="username" label="用户" min-width="180">
           <template #default="{ row }">
             <div class="user-cell">
-              <div class="avatar">{{ (row.nickname || row.username).charAt(0) }}</div>
+              <div class="avatar">{{ (row.nickname || row.username || 'U').charAt(0) }}</div>
               <div class="user-info">
                 <span class="username">{{ row.username }}</span>
-                <span class="nickname">{{ row.nickname || '-' }}</span>
+                <span class="nickname">{{ row.nickname || '未设置昵称' }}</span>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column prop="account" label="账号" min-width="100">
+        <el-table-column prop="account" label="账号" min-width="120">
           <template #default="{ row }">
             <el-tag size="small" type="info">{{ row.account || '-' }}</el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column prop="phone" label="手机号" min-width="140">
+        <el-table-column prop="phone" label="手机号" min-width="150">
           <template #default="{ row }">
-            <div class="contact-cell" v-if="row.phone">
+            <div v-if="row.phone" class="contact-cell">
               <Phone class="contact-icon" />
               <span>{{ row.phone }}</span>
             </div>
-            <span v-else class="empty">-</span>
+            <span v-else class="empty-text">-</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="email" label="邮箱" min-width="180">
+        <el-table-column prop="email" label="邮箱" min-width="210">
           <template #default="{ row }">
-            <div class="contact-cell" v-if="row.email">
+            <div v-if="row.email" class="contact-cell">
               <Message class="contact-icon" />
               <span>{{ row.email }}</span>
             </div>
-            <span v-else class="empty">-</span>
+            <span v-else class="empty-text">-</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="createdAt" label="创建时间" width="160">
+        <el-table-column prop="createdAt" label="创建时间" width="170">
           <template #default="{ row }">
             <span class="time">{{ formatTime(row.createdAt) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="120" fixed="right" align="center">
+        <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="{ row }">
-            <el-tooltip content="编辑" placement="top">
+            <el-tooltip content="编辑用户" placement="top">
               <el-button type="primary" :icon="Edit" circle size="small" @click="handleEdit(row)" />
             </el-tooltip>
-            <el-tooltip content="删除" placement="top">
+            <el-tooltip content="删除用户" placement="top">
               <el-button type="danger" :icon="Delete" circle size="small" @click="handleDelete(row)" />
             </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
-    </div>
+    </section>
 
-    <!-- 新增/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="480px" :close-on-click-modal="false">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="520px" :close-on-click-modal="false">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" placeholder="请输入用户名" :disabled="isEdit" />
         </el-form-item>
@@ -275,14 +299,14 @@ onUnmounted(() => {
             v-model="form.password"
             type="password"
             show-password
-            :placeholder="isEdit ? '留空表示不修改' : '请输入密码'"
+            :placeholder="isEdit ? '留空表示不修改密码' : '请输入密码'"
           />
         </el-form-item>
-        <el-form-item label="昵称" prop="nickname">
+        <el-form-item label="昵称">
           <el-input v-model="form.nickname" placeholder="请输入昵称" />
         </el-form-item>
-        <el-form-item label="账号" prop="account">
-          <el-input v-model="form.account" placeholder="请输入账号" />
+        <el-form-item label="账号">
+          <el-input v-model="form.account" placeholder="请输入业务账号" />
         </el-form-item>
         <el-form-item label="手机号" prop="phone">
           <el-input v-model="form.phone" placeholder="请输入手机号" />
@@ -293,7 +317,7 @@ onUnmounted(() => {
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="loading">确定</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitLoading">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -301,94 +325,112 @@ onUnmounted(() => {
 
 <style scoped>
 .users-page {
-  padding: 24px;
-}
-
-/* 统计卡片 */
-.stats-row {
+  padding: clamp(1rem, 2vw, 1.5rem);
   display: flex;
-  gap: 16px;
-  margin-bottom: 20px;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.stat-card {
-  flex: 1;
-  max-width: 200px;
-  padding: 20px 24px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+.users-hero {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(130deg, rgba(15, 23, 42, 0.86), rgba(30, 58, 138, 0.48)),
+    radial-gradient(circle at 85% 20%, rgba(14, 165, 233, 0.2), transparent 45%);
 }
 
-.stat-number {
-  font-size: 28px;
+.hero-copy h2 {
+  margin: 0.2rem 0 0.55rem;
+  font-size: clamp(1.2rem, 2vw, 1.5rem);
+  color: #f8fafc;
+}
+
+.hero-copy p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.hero-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.hero-stat {
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(15, 23, 42, 0.42);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.hero-stat-label {
+  font-size: 0.74rem;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.hero-stat-value {
+  font-size: 1.18rem;
   font-weight: 700;
-  color: #8b5cf6;
+  color: #f8fafc;
 }
 
-.stat-label {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-top: 4px;
+.toolbar-card,
+.table-card {
+  border-radius: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.55);
 }
 
-/* 工具栏 */
 .toolbar-card {
-  padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  margin-bottom: 20px;
+  padding: 0.9rem 1rem;
 }
 
 .toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   flex-wrap: wrap;
-  gap: 12px;
 }
 
-.search-input :deep(.el-input__wrapper) {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: none;
-}
-
-.search-input :deep(.el-input__wrapper:hover),
-.search-input :deep(.el-input__wrapper.is-focus) {
-  border-color: #8b5cf6;
-}
-
-.search-input :deep(.el-input__inner) {
-  color: #fff;
-}
-
-.search-input :deep(.el-input__inner::placeholder) {
-  color: rgba(255, 255, 255, 0.3);
+.search-input {
+  width: min(100%, 360px);
 }
 
 .toolbar-actions {
   display: flex;
-  gap: 10px;
+  gap: 0.6rem;
 }
 
-/* 表格卡片 */
 .table-card {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .data-table {
   --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: rgba(139, 92, 246, 0.08);
-  --el-table-row-hover-bg-color: rgba(139, 92, 246, 0.08);
-  --el-table-border-color: rgba(255, 255, 255, 0.06);
-  --el-table-text-color: rgba(255, 255, 255, 0.85);
-  --el-table-header-text-color: #a78bfa;
+  --el-table-header-bg-color: rgba(56, 189, 248, 0.12);
+  --el-table-row-hover-bg-color: rgba(56, 189, 248, 0.08);
+  --el-table-border-color: rgba(255, 255, 255, 0.08);
+  --el-table-text-color: rgba(248, 250, 252, 0.9);
+  --el-table-header-text-color: #bae6fd;
 }
 
 .data-table :deep(.el-table__inner-wrapper::before) {
@@ -396,193 +438,125 @@ onUnmounted(() => {
 }
 
 .id-tag {
-  padding: 2px 8px;
-  background: rgba(139, 92, 246, 0.15);
-  border-radius: 4px;
-  font-size: 12px;
-  color: #a78bfa;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.6rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.18);
+  border: 1px solid rgba(125, 211, 252, 0.28);
 }
 
 .user-cell {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
 .avatar {
-  width: 36px;
-  height: 36px;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.65rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #8b5cf6, #ec4899);
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  flex-shrink: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #f8fafc;
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
 }
 
 .user-info {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.16rem;
 }
 
 .username {
-  font-weight: 500;
-  color: #fff;
+  color: #f8fafc;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .nickname {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.74rem;
+  color: rgba(255, 255, 255, 0.62);
 }
 
 .contact-cell {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.4rem;
+  min-width: 0;
 }
 
 .contact-icon {
-  width: 14px;
-  height: 14px;
-  color: #8b5cf6;
+  width: 0.86rem;
+  height: 0.86rem;
+  color: #38bdf8;
   flex-shrink: 0;
 }
 
-.empty {
-  color: rgba(255, 255, 255, 0.3);
+.contact-cell span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-text {
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .time {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-/* 弹窗样式 */
-:deep(.el-dialog) {
-  background: #1a1a24;
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  border-radius: 12px;
-}
-
-:deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 16px 20px;
-}
-
-:deep(.el-dialog__title) {
-  color: #fff;
-  font-weight: 600;
-}
-
-:deep(.el-dialog__body) {
-  padding: 20px;
-}
-
-:deep(.el-dialog__footer) {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 12px 20px;
-}
-
-:deep(.el-form-item__label) {
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.58);
 }
 
 :deep(.el-input__wrapper) {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: none;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 :deep(.el-input__wrapper:hover),
 :deep(.el-input__wrapper.is-focus) {
-  border-color: #8b5cf6;
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.45);
+}
+
+:deep(.el-dialog) {
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.96);
+}
+
+:deep(.el-dialog__title) {
+  color: #f8fafc;
+}
+
+:deep(.el-form-item__label) {
+  color: rgba(255, 255, 255, 0.75);
 }
 
 :deep(.el-input__inner) {
-  color: #fff;
+  color: #f8fafc;
 }
 
-/* 骨架屏 */
-.skeleton-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1.5rem;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-}
-
-.skeleton-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 8px;
-  animation: skeleton-loading 1.5s ease-in-out infinite;
-}
-
-.skeleton-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: rgba(139, 92, 246, 0.2);
-  flex-shrink: 0;
-}
-
-.skeleton-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.skeleton-line {
-  height: 12px;
-  background: rgba(139, 92, 246, 0.15);
-  border-radius: 4px;
-}
-
-.skeleton-line-title {
-  width: 30%;
-}
-
-.skeleton-line-text {
-  width: 60%;
-}
-
-@keyframes skeleton-loading {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
+@media (max-width: 1024px) {
+  .users-hero {
+    grid-template-columns: 1fr;
   }
 }
 
-/* 响应式 */
-@media (max-width: 768px) {
-  .toolbar {
-    flex-direction: column;
-    align-items: stretch;
+@media (max-width: 640px) {
+  .hero-stats {
+    grid-template-columns: 1fr;
   }
 
-  .search-input {
-    width: 100% !important;
-  }
-
-  .stats-row {
-    flex-wrap: wrap;
-  }
-
-  .stat-card {
-    min-width: 120px;
+  .toolbar-actions {
+    width: 100%;
   }
 }
 </style>

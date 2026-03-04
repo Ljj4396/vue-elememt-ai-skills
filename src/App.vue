@@ -3,9 +3,11 @@ import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import AdminLayout from '@/components/AdminLayout.vue'
+import zhCn from 'element-plus/es/locale/lang/zh-cn.mjs'
 
 const route = useRoute()
 const themeStore = useThemeStore()
+const locale = zhCn
 
 // 登录页不使用后台布局
 const showLayout = computed(() => route.name !== 'Login')
@@ -17,20 +19,22 @@ onMounted(() => {
 </script>
 
 <template>
-  <div :class="['app-container', `theme-${themeStore.currentTheme}`]">
-    <AdminLayout v-if="showLayout">
-      <router-view v-slot="{ Component, route }">
-        <transition name="fade-slide" mode="out-in">
+  <el-config-provider :locale="locale">
+    <div :class="['app-container', `theme-${themeStore.currentTheme}`]">
+      <AdminLayout v-if="showLayout">
+        <router-view v-slot="{ Component, route }">
+          <transition name="fade-slide" mode="out-in">
+            <component :is="Component" :key="route.fullPath" />
+          </transition>
+        </router-view>
+      </AdminLayout>
+      <router-view v-else v-slot="{ Component, route }">
+        <transition name="fade" mode="out-in">
           <component :is="Component" :key="route.fullPath" />
         </transition>
       </router-view>
-    </AdminLayout>
-    <router-view v-else v-slot="{ Component, route }">
-      <transition name="fade" mode="out-in">
-        <component :is="Component" :key="route.fullPath" />
-      </transition>
-    </router-view>
-  </div>
+    </div>
+  </el-config-provider>
 </template>
 
 <style>
