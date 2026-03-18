@@ -1,0 +1,198 @@
+package main
+
+import (
+	"embed"
+	"fmt"
+	"io/fs"
+	"log"
+	"net/http"
+	"os/exec"
+	"runtime"
+	"time"
+	"vue-element-ui/config"
+	"vue-element-ui/db"
+	"vue-element-ui/handlers"
+	"vue-element-ui/middleware"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+)
+
+//go:embed dist
+var distFS embed.FS
+
+func main() {
+	// 加载配置
+	config.LoadConfig()
+
+	// 初始化数据库
+	if err := db.Init(); err != nil {
+		log.Fatalf("初始化数据库失败: %v", err)
+	}
+
+	// 设置 Gin 模式
+	gin.SetMode(gin.ReleaseMode)
+
+	// 创建路由
+	r := gin.Default()
+
+	// CORS 配置
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
+	// API 路由组
+	api := r.Group("/api")
+	{
+		// 健康检查
+		api.GET("/health", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		// 认证相关（无需 token）
+		api.POST("/login", handlers.Login)
+
+		// 需要认证的路由
+		auth := api.Group("")
+		auth.Use(middleware.AuthMiddleware())
+		{
+			// 用户信息
+			auth.GET("/user/info", handlers.GetUserInfo)
+
+			// 用户管理（需要 users 权限）
+			users := auth.Group("/users")
+			users.Use(middleware.PermissionMiddleware("users"))
+			{
+				users.GET("", handlers.GetUsers)
+				users.POST("", handlers.AddUser)
+				users.PUT("/:id", handlers.UpdateUser)
+				users.DELETE("/:id", handlers.DeleteUser)
+			}
+
+			// AI 聊天（兼容前端路径）
+			auth.POST("/chat", handlers.Chat)
+			auth.POST("/ai/chat", handlers.ChatWithAI)
+
+			// 聊天历史管理
+			auth.GET("/chat/history", handlers.GetChatHistory)
+			auth.PUT("/chat/history", handlers.SaveChatHistory)
+			auth.DELETE("/chat/history", handlers.ClearChatHistory)
+
+			// AI 请求记录（管理员）
+			auth.GET("/ai/requests", middleware.AdminMiddleware(), handlers.GetAIRequests)
+
+			// VIP 权限申请（用户提交）
+			auth.POST("/ai/requests", handlers.SubmitPermissionRequest)
+
+			// 余额表上传（兼容前端路径）
+			auth.POST("/balance/upload", handlers.UploadExcel)
+			auth.POST("/excel/upload", handlers.UploadExcel)
+
+			// 权限申请管理
+			auth.GET("/permissions/requests", handlers.GetPermissionRequests)
+			auth.POST("/permissions/request", handlers.SubmitPermissionRequest)
+			auth.POST("/permissions/approve", middleware.AdminMiddleware(), handlers.ApprovePermissionRequest)
+		}
+	}
+
+	// 静态文件服务（前端）
+	distSubFS, err := fs.Sub(distFS, "dist")
+	if err != nil {
+		log.Fatalf("获取 dist 子文件系统失败: %v", err)
+	}
+	r.NoRoute(func(c *gin.Context) {
+		// 尝试读取文件
+		path := c.Request.URL.Path
+		if path == "/" {
+			path = "/index.html"
+		}
+
+		file, err := distSubFS.Open(path[1:]) // 移除开头的 /
+		if err != nil {
+			// 文件不存在，返回 index.html（支持 Vue Router history 模式）
+			indexFile, err := distSubFS.Open("index.html")
+			if err != nil {
+				c.String(http.StatusNotFound, "404 Not Found")
+				return
+			}
+			defer indexFile.Close()
+			c.DataFromReader(http.StatusOK, -1, "text/html", indexFile, nil)
+			return
+		}
+		defer file.Close()
+
+		// 返回文件
+		c.DataFromReader(http.StatusOK, -1, getContentType(path), file, nil)
+	})
+
+	// 启动服务器
+	port := config.AppConfig.Port
+	log.Printf("服务器启动在 http://localhost:%s", port)
+
+	// 延迟 1 秒后自动打开浏览器
+	go func() {
+		time.Sleep(1 * time.Second)
+		openBrowser(fmt.Sprintf("http://localhost:%s", port))
+	}()
+
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("启动服务器失败: %v", err)
+	}
+}
+
+// openBrowser 打开默认浏览器
+func openBrowser(url string) {
+	var err error
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("cmd", "/c", "start", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+	if err != nil {
+		log.Printf("无法自动打开浏览器: %v", err)
+	} else {
+		log.Printf("已自动打开浏览器: %s", url)
+	}
+}
+
+// getContentType 根据文件扩展名返回 Content-Type
+func getContentType(path string) string {
+	switch {
+	case len(path) >= 5 && path[len(path)-5:] == ".html":
+		return "text/html"
+	case len(path) >= 4 && path[len(path)-4:] == ".css":
+		return "text/css"
+	case len(path) >= 3 && path[len(path)-3:] == ".js":
+		return "application/javascript"
+	case len(path) >= 4 && path[len(path)-4:] == ".png":
+		return "image/png"
+	case len(path) >= 4 && path[len(path)-4:] == ".jpg":
+		return "image/jpeg"
+	case len(path) >= 5 && path[len(path)-5:] == ".jpeg":
+		return "image/jpeg"
+	case len(path) >= 4 && path[len(path)-4:] == ".svg":
+		return "image/svg+xml"
+	case len(path) >= 4 && path[len(path)-4:] == ".ico":
+		return "image/x-icon"
+	case len(path) >= 5 && path[len(path)-5:] == ".json":
+		return "application/json"
+	case len(path) >= 5 && path[len(path)-5:] == ".woff":
+		return "font/woff"
+	case len(path) >= 6 && path[len(path)-6:] == ".woff2":
+		return "font/woff2"
+	case len(path) >= 4 && path[len(path)-4:] == ".ttf":
+		return "font/ttf"
+	default:
+		return "application/octet-stream"
+	}
+}

@@ -88,18 +88,22 @@ setUnauthorizedHandler(() => {
 async function resolveAuth() {
   const cached = getCachedAuth()
   if (Object.keys(cached.permissions || {}).length > 0 || cached.isAdmin) {
-    return cached
+    return { ok: true, ...cached }
   }
   try {
     const userInfo = await fetchAndCacheUserInfo()
     return {
+      ok: true,
       permissions: userInfo.permissions || {},
       isAdmin: userInfo.isAdmin === true,
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    // 401 表示 token 已过期或无效，需要重新登录
+    if (e?.response?.status === 401) {
+      return { ok: false }
+    }
   }
-  return { permissions: {}, isAdmin: false }
+  return { ok: true, permissions: {}, isAdmin: false }
 }
 
 router.beforeEach(async (to, from, next) => {
@@ -120,7 +124,12 @@ router.beforeEach(async (to, from, next) => {
     return next()
   }
 
-  const { permissions, isAdmin } = await resolveAuth()
+  const auth = await resolveAuth()
+  // token 已过期，axios 拦截器会清除 session 并跳转登录，守卫直接中止
+  if (!auth.ok) {
+    return next({ name: 'Login', query: { redirect: to.fullPath } })
+  }
+  const { permissions, isAdmin } = auth
   if (to.meta.adminOnly && !isAdmin) {
     return next({ name: 'Dashboard' })
   }

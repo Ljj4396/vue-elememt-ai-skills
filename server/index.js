@@ -1,6 +1,6 @@
 import http from 'node:http'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, join, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import jwt from 'jsonwebtoken'
 import Busboy from 'busboy'
@@ -409,6 +409,51 @@ const server = http.createServer(async (req, res) => {
       if (!user) return unauthorized(res, '用户不存在')
       const { password: _, ...safeUser } = user
       return ok(res, safeUser)
+    }
+
+    // ============ 静态文件服务（用于本地/发布环境托管前端资源） ============
+    // 非 /api/ 请求，尝试从 dist/ 目录返回前端静态文件
+    // 必须在 token 校验之前，否则前端页面会被拦截
+    if (!pathname.startsWith('/api/')) {
+      const distDir = join(__dirname, '..', 'dist')
+      const MIME_TYPES = {
+        '.html': 'text/html; charset=utf-8',
+        '.js': 'application/javascript; charset=utf-8',
+        '.css': 'text/css; charset=utf-8',
+        '.json': 'application/json; charset=utf-8',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2',
+        '.ttf': 'font/ttf',
+        '.eot': 'application/vnd.ms-fontobject',
+        '.webp': 'image/webp',
+      }
+
+      const requestedFile = pathname === '/' ? 'index.html' : pathname.slice(1)
+      const filePath = join(distDir, requestedFile)
+
+      try {
+        const content = await readFile(filePath)
+        const ext = extname(filePath).toLowerCase()
+        res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' })
+        res.end(content)
+        return
+      } catch {
+        // 文件不存在，使用 SPA fallback：返回 index.html
+        try {
+          const indexContent = await readFile(join(distDir, 'index.html'))
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+          res.end(indexContent)
+          return
+        } catch {
+          // dist 目录不存在（开发模式下正常），继续走 API 逻辑
+        }
+      }
     }
 
     // ========== 以下接口需要 token 校验 ==========
@@ -922,13 +967,42 @@ const server = http.createServer(async (req, res) => {
   }
 })
 
-server.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`API server listening on http://localhost:${PORT}`)
-  console.log('--- 环境配置检查 ---')
-  console.log('AI_PROVIDER:', process.env.AI_PROVIDER || 'claude (默认)')
-  console.log('AI_BASE_URL:', process.env.AI_BASE_URL ? '已加载' : '未找到!')
-  console.log('AI_MODEL:', process.env.AI_MODEL)
-  console.log('--------------------')
-})
 
+
+// 动态端口启动函数
+function startServerWithDynamicPort(startPort, maxRetries = 20) {
+  let currentPort = startPort
+  let retries = 0
+
+  function tryListen() {
+    server.listen(currentPort, () => {
+      console.log(`✓ API server listening on http://localhost:${currentPort}`)
+      console.log('--- 环境配置检查 ---')
+      console.log('AI_PROVIDER:', process.env.AI_PROVIDER || 'claude (默认)')
+      console.log('AI_BASE_URL:', process.env.AI_BASE_URL ? '已加载' : '未找到!')
+      console.log('AI_MODEL:', process.env.AI_MODEL)
+      console.log('--------------------')
+    })
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE' && retries < maxRetries) {
+        console.log(`端口 ${currentPort} 已被占用，尝试下一个端口...`)
+        currentPort++
+        retries++
+        server.close()
+        setTimeout(tryListen, 100)
+      } else if (retries >= maxRetries) {
+        console.error(`无法找到可用端口（尝试了 ${startPort}-${currentPort}）`)
+        process.exit(1)
+      } else {
+        console.error('启动服务器失败:', err)
+        process.exit(1)
+      }
+    })
+  }
+
+  tryListen()
+}
+
+// 使用动态端口启动
+startServerWithDynamicPort(PORT)

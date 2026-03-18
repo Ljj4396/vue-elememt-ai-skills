@@ -58,7 +58,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3000', // 使用 127.0.0.1 避开可能的 DNS 解析延迟
+        target: 'http://127.0.0.1:3001', // Go backend runs on 3001 in this project setup
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '/api'), // 确保路径匹配
       },
